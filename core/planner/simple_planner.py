@@ -1,5 +1,5 @@
 from typing import Dict, Any
-from base_planner import BasePlanner
+from .base_planner import BasePlanner
 
 
 class SimpleRAGPlanner(BasePlanner):

@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 from pymongo import MongoClient
-from base_vector_store import BaseVectorStore
-from document import DocumentChunk
+from .base_vector_store import BaseVectorStore
+from core.document import DocumentChunk
 
 
 class MongoDBAtlasVectorStore(BaseVectorStore):
@@ -45,18 +45,21 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
             documents = []
             for chunk in chunks:
                 doc = {
-                    "_id": chunk.id,  # Use chunk.id as MongoDB _id
+                    "_id": chunk.id,
                     "text": chunk.content,
                     "embedding": chunk.embedding,
                     "doc_id": chunk.doc_id,
                     "owner_id": chunk.metadata.get("owner_id"),
                     "metadata": chunk.metadata
                 }
+                print("BHAU")
+                print(doc)
                 documents.append(doc)
 
             if documents:
                 # Use ordered=False to continue even if some inserts fail
                 result = self.collection.insert_many(documents, ordered=False)
+                print(result)
                 return len(result.inserted_ids) > 0
             return True
 
@@ -89,8 +92,11 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
                     }
                 }
             ]
+            # print("ADILOG: " + str(pipeline))
 
             results = list(self.collection.aggregate(pipeline))
+            print("ADILOG")
+            print(results)
             chunks = []
 
             for result in results:

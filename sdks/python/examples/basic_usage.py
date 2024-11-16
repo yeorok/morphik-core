@@ -1,0 +1,197 @@
+import asyncio
+import os
+import sys
+from pathlib import Path
+from datetime import UTC, datetime, timedelta
+
+from dotenv import load_dotenv
+import jwt
+
+# we can't pip install, this basically acts like pip install.
+sdk_root = Path(__file__).parent.parent
+sys.path.append(str(sdk_root))
+
+from databridge import DataBridge, ContentType, DataBridgeError
+
+
+def create_test_uri():
+    """Create a test URI with a valid JWT token"""
+    token = jwt.encode(
+        {
+            'owner_id': 'test_user_123',
+            'exp': datetime.now(UTC) + timedelta(days=30)
+        },
+        "your-secret-key-for-signing-tokens",
+        algorithm='HS256'
+    )
+    return f"databridge://test_user_123:{token}@localhost:8000"
+
+
+async def example_text():
+    """Example of ingesting and querying text documents"""
+    print("\n=== Text Document Example ===")
+    load_dotenv()
+    uri = os.getenv("DATABRIDGE_URI")
+    if not uri:
+        raise ValueError("Please set DATABRIDGE_URI environment variable")
+
+    db = DataBridge(create_test_uri())
+    
+    try:
+        # Ingest a simple text document
+        content = """
+        Machine learning (ML) is a type of artificial intelligence (AI) that allows 
+        software applications to become more accurate at predicting outcomes without 
+        being explicitly programmed to do so. Machine learning algorithms use historical 
+        data as input to predict new output values.
+        """
+        
+        doc_id = await db.ingest_document(
+            content=content,
+            metadata={
+                "title": "ML Introduction",
+                "category": "tech",
+                "tags": ["ML", "AI", "technology"]
+            }
+        )
+        print(f"✓ Document ingested successfully (ID: {doc_id})")
+
+        # Query the document
+        results = await db.query(
+            query="What is machine learning?",
+            k=1  # Get top result
+        )
+        
+        print("\nQuery Results:")
+        for result in results:
+            print(f"Content: {result.content.strip()}")
+            print(f"Score: {result.score:.2f}")
+            print(f"Metadata: {result.metadata}")
+
+    except DataBridgeError as e:
+        print(f"× Error: {str(e)}")
+    
+    finally:
+        await db.close()
+
+
+async def example_pdf():
+    """Example of ingesting and querying PDF documents"""
+    print("\n=== PDF Document Example ===")
+    
+    uri = os.getenv("DATABRIDGE_URI")
+    if not uri:
+        raise ValueError("Please set DATABRIDGE_URI environment variable")
+
+    # Path to a sample PDF in the examples directory
+    pdf_path = Path(__file__).parent / "sample.pdf"
+    if not pdf_path.exists():
+        print("× sample.pdf not found in examples directory")
+        return
+
+    db = DataBridge(uri)
+    
+    try:
+        # Read and ingest PDF
+        with open(pdf_path, "rb") as f:
+            pdf_content = f.read()
+
+        doc_id = await db.ingest_document(
+            content=pdf_content,
+            metadata={
+                "title": "Sample Document",
+                "source": "examples",
+                "file_type": "pdf"
+            },
+            content_type=ContentType.PDF
+        )
+        print(f"✓ PDF ingested successfully (ID: {doc_id})")
+
+        # Query the PDF content
+        results = await db.query(
+            query="What is the main topic of this document?",
+            k=2,  # Get top 2 results
+            filters={"file_type": "pdf"}  # Only search PDF documents
+        )
+        
+        print("\nQuery Results:")
+        for i, result in enumerate(results, 1):
+            print(f"\nResult {i}:")
+            print(f"Content: {result.content[:200]}...")
+            print(f"Score: {result.score:.2f}")
+            print(f"Document ID: {result.doc_id}")
+
+    except DataBridgeError as e:
+        print(f"× Error: {str(e)}")
+    
+    finally:
+        await db.close()
+
+
+async def example_batch():
+    """Example of batch operations"""
+    print("\n=== Batch Operations Example ===")
+    
+    uri = os.getenv("DATABRIDGE_URI")
+    if not uri:
+        raise ValueError("Please set DATABRIDGE_URI environment variable")
+
+    db = DataBridge(uri)
+    
+    try:
+        # Prepare multiple documents
+        documents = [
+            {
+                "content": "Python is a programming language.",
+                "metadata": {"category": "programming", "level": "basic"}
+            },
+            {
+                "content": "JavaScript runs in the browser.",
+                "metadata": {"category": "programming", "level": "basic"}
+            },
+            {
+                "content": "Docker containers package applications.",
+                "metadata": {"category": "devops", "level": "intermediate"}
+            }
+        ]
+
+        # Ingest multiple documents
+        doc_ids = []
+        for doc in documents:
+            doc_id = await db.ingest_document(
+                content=doc["content"],
+                metadata=doc["metadata"]
+            )
+            doc_ids.append(doc_id)
+        print(f"✓ Ingested {len(doc_ids)} documents")
+
+        # Query with filters
+        results = await db.query(
+            query="What is Python?",
+            filters={"category": "programming"}
+        )
+        
+        print("\nQuery Results (Programming category only):")
+        for result in results:
+            print(f"\nContent: {result.content}")
+            print(f"Category: {result.metadata['category']}")
+            print(f"Level: {result.metadata['level']}")
+
+    except DataBridgeError as e:
+        print(f"× Error: {str(e)}")
+    
+    finally:
+        await db.close()
+
+
+async def main():
+    """Run all examples"""
+    try:
+        await example_text()
+        await example_pdf()
+        await example_batch()
+    except Exception as e:
+        print(f"× Main error: {str(e)}")
+
+if __name__ == "__main__":
+    asyncio.run(main())

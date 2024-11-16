@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List
-from document import DocumentChunk
+from core.document import DocumentChunk
 
 
 class BaseVectorStore(ABC):

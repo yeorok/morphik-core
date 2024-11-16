@@ -1,6 +1,8 @@
-from datetime import datetime, timedelta, UTC  # Note: using UTC for timezone awareness
+import sys; sys.path.append('.')
+
+from datetime import datetime, timedelta, UTC
 import base64
-from databridge import DataBridge
+from core.databridge import DataBridge
 import jwt
 import os
 from dotenv import load_dotenv
@@ -47,7 +49,7 @@ async def main():
     bridge = DataBridge(create_databridge_uri())
 
     # Example: Ingest a PDF document
-    with open("sample.pdf", "rb") as f:
+    with open("examples/sample.pdf", "rb") as f:
         pdf_content = base64.b64encode(f.read()).decode()
 
     await bridge.ingest_document(

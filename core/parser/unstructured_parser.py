@@ -1,5 +1,5 @@
 from typing import Dict, Any, List
-from base_parser import BaseParser
+from .base_parser import BaseParser
 from unstructured.partition.auto import partition
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os

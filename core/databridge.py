@@ -1,10 +1,10 @@
 from typing import Dict, Any, List
-from databridge_uri import DataBridgeURI
-from document import Document, DocumentChunk
-from mongo_vector_store import MongoDBAtlasVectorStore
-from openai_embedding_model import OpenAIEmbeddingModel
-from unstructured_parser import UnstructuredAPIParser
-from simple_planner import SimpleRAGPlanner
+from .databridge_uri import DataBridgeURI
+from .document import Document, DocumentChunk
+from .vector_store.mongo_vector_store import MongoDBAtlasVectorStore
+from .embedding_model.openai_embedding_model import OpenAIEmbeddingModel
+from .parser.unstructured_parser import UnstructuredAPIParser
+from .planner.simple_planner import SimpleRAGPlanner
 
 
 class DataBridge:

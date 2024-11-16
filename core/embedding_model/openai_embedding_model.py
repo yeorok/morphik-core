@@ -1,6 +1,6 @@
 from typing import List, Union
 import openai
-from base_embedding_model import BaseEmbeddingModel
+from .base_embedding_model import BaseEmbeddingModel
 
 
 class OpenAIEmbeddingModel(BaseEmbeddingModel):
