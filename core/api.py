@@ -70,8 +70,8 @@ class ServiceConfig:
         try:
             self.vector_store = MongoDBAtlasVectorStore(
                 connection_string=os.getenv("MONGODB_URI"),
-                database_name=os.getenv("DB_NAME", "databridge"),
-                collection_name=os.getenv("COLLECTION_NAME", "embeddings")
+                database_name=os.getenv("DB_NAME", "DataBridgeTest"),
+                collection_name=os.getenv("COLLECTION_NAME", "test")
             )
 
             self.embedding_model = OpenAIEmbeddingModel(
@@ -181,10 +181,10 @@ async def ingest_document(
 
     # Parse into chunks
     chunk_texts = service.parser.parse(request.content, request.metadata)
+    embeddings = await service.embedding_model.embed_for_ingestion(chunk_texts)
     # Create embeddings and chunks
     chunks = []
-    for chunk_text in chunk_texts:
-        embedding = await service.embedding_model.embed(chunk_text)
+    for embedding, chunk_text in zip(embeddings, chunk_texts):
         chunk = DocumentChunk(chunk_text, embedding, doc.id)
         chunk.metadata = {
             'owner_id': owner_id,
@@ -212,12 +212,11 @@ async def query_documents(
     All configuration and credentials are handled server-side.
     """
     logger.info(f"Processing query for owner {owner_id}")
-    print("ADILOG ")
     # Create plan
     plan = service.planner.plan_retrieval(request.query, k=request.k)
 
     # Get query embedding
-    query_embedding = await service.embedding_model.embed(request.query)
+    query_embedding = await service.embedding_model.embed_for_query(request.query)
 
     # Query vector store
     chunks = service.vector_store.query_similar(

@@ -83,7 +83,7 @@ async def example_pdf():
     if not uri:
         raise ValueError("Please set DATABRIDGE_URI environment variable")
 
-    # Path to a sample PDF in the examples directory
+
     pdf_path = Path(__file__).parent / "sample.pdf"
     if not pdf_path.exists():
         print("× sample.pdf not found in examples directory")

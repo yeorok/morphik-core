@@ -34,7 +34,7 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
                     name=self.index_name,
                     vectorSearchOptions={
                         "dimensions": 1536,  # For OpenAI embeddings
-                        "similarity": "cosine"
+                        "similarity": "dotProduct"
                     }
                 )
         except Exception as e:
@@ -52,14 +52,12 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
                     "owner_id": chunk.metadata.get("owner_id"),
                     "metadata": chunk.metadata
                 }
-                print("BHAU")
-                print(doc)
+
                 documents.append(doc)
 
             if documents:
                 # Use ordered=False to continue even if some inserts fail
                 result = self.collection.insert_many(documents, ordered=False)
-                print(result)
                 return len(result.inserted_ids) > 0
             return True
 
@@ -77,7 +75,7 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
         """Find similar chunks using MongoDB Atlas Vector Search."""
         base_filter = {"owner_id": owner_id}
         if filters:
-            base_filter.update(filters)
+            filters.update(base_filter)
 
         try:
             pipeline = [
@@ -88,15 +86,21 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
                         "queryVector": query_embedding,
                         "numCandidates": k * 10,
                         "limit": k,
-                        "filter": base_filter
+                        "filter": filters if filters else base_filter
+                    }
+                },
+                {
+                    "$project": {
+                        "score": {"$meta": "vectorSearchScore"},
+                        "text": 1,
+                        "embedding": 1,
+                        "doc_id": 1,
+                        "metadata": 1
                     }
                 }
             ]
-            # print("ADILOG: " + str(pipeline))
 
             results = list(self.collection.aggregate(pipeline))
-            print("ADILOG")
-            print(results)
             chunks = []
 
             for result in results:

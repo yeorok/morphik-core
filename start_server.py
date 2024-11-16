@@ -2,6 +2,7 @@ import uvicorn
 import os
 from dotenv import load_dotenv
 
+
 def main():
     # Load environment variables from .env file
     load_dotenv()
@@ -15,6 +16,7 @@ def main():
     ]
     
     missing = [var for var in required_vars if not os.getenv(var)]
+
     if missing:
         raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
 
