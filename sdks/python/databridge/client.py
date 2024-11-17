@@ -32,11 +32,9 @@ class DataBridge:
     def __init__(
         self,
         uri: str,
-        base_url: str = "https://api.databridge.ai/v1",
         timeout: int = 30,
         max_retries: int = 3
     ):
-        self._base_url = base_url.rstrip('/')
         self._timeout = timeout
         self._max_retries = max_retries
         self._client = httpx.AsyncClient(timeout=timeout)
@@ -48,8 +46,10 @@ class DataBridge:
             parsed = urlparse(uri)
             if not parsed.netloc:
                 raise ValueError("Invalid URI format")
-
-            auth_parts = parsed.netloc.split('@')[0].split(':')
+            
+            split_uri = parsed.netloc.split('@')
+            self._base_url = f"{"http" if "localhost" in split_uri[1] else "https"}://{split_uri[1]}"
+            auth_parts = split_uri[0].split(':')
             if len(auth_parts) != 2:
                 raise ValueError("URI must include owner_id and auth_token")
 
@@ -89,7 +89,7 @@ class DataBridge:
         try:
             response = await self._client.request(
                 method,
-                f"http://localhost:8000/{endpoint.lstrip('/')}",
+                f"{self._base_url}/{endpoint.lstrip('/')}",
                 json=data,
                 headers=headers
             )

@@ -20,7 +20,7 @@ def create_developer_test_uri():
         "your-secret-key-for-signing-tokens",
         algorithm='HS256'
     )
-    return f"databridge://dev_123.app_456:{token}@localhost:8000"
+    return f"databridge://dev_16.app_456:{token}@localhost:8000"
 
 
 def create_user_test_uri():
@@ -191,9 +191,9 @@ async def example_batch():
 async def main():
     """Run all examples"""
     try:
-        # await example_text()
+        await example_text()
         await example_pdf()
-        # await example_batch()
+        await example_batch()
     except Exception as e:
         print(f"× Main error: {str(e)}")
 
