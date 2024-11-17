@@ -1,5 +1,10 @@
 from .client import DataBridge
-from .exceptions import DataBridgeError
-from .types import ContentType
+from .exceptions import DataBridgeError, AuthenticationError
 
-__all__ = ['DataBridge', 'DataBridgeError', 'ContentType']
+__version__ = "0.1.0"
+
+__all__ = [
+    "DataBridge",
+    "DataBridgeError",
+    "AuthenticationError",
+]

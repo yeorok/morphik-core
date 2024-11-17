@@ -6,7 +6,6 @@ from datetime import datetime, UTC
 import asyncio
 from dataclasses import dataclass
 from .exceptions import AuthenticationError
-from .types import ContentType
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,7 +16,6 @@ class QueryResult:
     """Structured query result"""
     content: str
     doc_id: str
-    chunk_id: str
     score: Optional[float]
     metadata: Dict[str, Any]
 
@@ -55,8 +53,12 @@ class DataBridge:
             if len(auth_parts) != 2:
                 raise ValueError("URI must include owner_id and auth_token")
 
-            self._owner_id = auth_parts[0]
-            self._auth_token = auth_parts[1]
+            if '.' in auth_parts[0]:
+                self._owner_id = auth_parts[0]  # dev_id.app_id format
+                self._auth_token = auth_parts[1]
+            else:
+                self._owner_id = auth_parts[0]  # eu_id format
+                self._auth_token = auth_parts[1]
 
             # Validate token structure (not signature)
             try:
@@ -109,8 +111,7 @@ class DataBridge:
     async def ingest_document(
         self,
         content: Union[str, bytes],
-        metadata: Optional[Dict[str, Any]] = None,
-        content_type: ContentType = ContentType.TEXT
+        metadata: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Ingest a document into DataBridge.
@@ -130,7 +131,6 @@ class DataBridge:
             metadata["is_base64"] = True
 
         metadata = metadata or {}
-        metadata["content_type"] = content_type
 
         response = await self._make_request(
             "POST",
@@ -174,7 +174,6 @@ class DataBridge:
             QueryResult(
                 content=result["content"],
                 doc_id=result["doc_id"],
-                chunk_id=result["chunk_id"],
                 score=result.get("score"),
                 metadata=result.get("metadata", {})
             )

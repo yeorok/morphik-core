@@ -1,3 +1,4 @@
+import uuid
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -11,7 +12,7 @@ from .vector_store.mongo_vector_store import MongoDBAtlasVectorStore
 from .embedding_model.openai_embedding_model import OpenAIEmbeddingModel
 from .parser.unstructured_parser import UnstructuredAPIParser
 from .planner.simple_planner import SimpleRAGPlanner
-from .document import Document, DocumentChunk
+from .document import DocumentChunk, Permission, Source, SystemMetadata, AuthContext, AuthType
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -91,15 +92,28 @@ class ServiceConfig:
         except Exception as e:
             raise ValueError(f"Failed to initialize components: {str(e)}")
 
-    async def verify_token(self, token: str, owner_id: str) -> bool:
-        """Verify JWT token and owner_id"""
+    async def verify_token(self, token: str, owner_id: str) -> AuthContext:
+        """Verify JWT token and return auth context"""
         try:
             payload = jwt.decode(token, self.jwt_secret, algorithms=["HS256"])
-            if payload.get("owner_id") != owner_id:
-                raise AuthenticationError("Owner ID mismatch")
+            
             if datetime.fromtimestamp(payload["exp"], UTC) < datetime.now(UTC):
                 raise AuthenticationError("Token has expired")
-            return True
+
+            # Check if this is a developer token
+            if "." in owner_id:  # dev_id.app_id format
+                dev_id, app_id = owner_id.split(".")
+                return AuthContext(
+                    type=AuthType.DEVELOPER,
+                    dev_id=dev_id,
+                    app_id=app_id
+                )
+            else:  # User token
+                return AuthContext(
+                    type=AuthType.USER,
+                    eu_id=owner_id
+                )
+
         except jwt.InvalidTokenError:
             raise AuthenticationError("Invalid token")
         except Exception as e:
@@ -114,6 +128,7 @@ service = ServiceConfig()
 class IngestRequest(BaseModel):
     content: str = Field(..., description="Document content (text or base64)")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Document metadata")
+    eu_id: Optional[str] = Field(None, description="End user ID when developer ingests for user")
 
 
 class QueryRequest(BaseModel):
@@ -139,8 +154,7 @@ async def verify_auth(
     auth_token: Annotated[str, Header(alias="X-Auth-Token")]
 ) -> str:
     """Verify authentication headers"""
-    await service.verify_token(auth_token, owner_id)
-    return owner_id
+    return await service.verify_token(auth_token, owner_id)
 
 
 # Error handler middleware
@@ -161,79 +175,90 @@ async def error_handler(request: Request, call_next):
         )
 
 
-# API Routes
 @app.post("/ingest", response_model=IngestResponse)
 async def ingest_document(
     request: IngestRequest,
-    owner_id: str = Depends(verify_auth)
+    auth: AuthContext = Depends(verify_auth)
 ) -> IngestResponse:
-    """
-    Ingest a document into DataBridge.
-    All configuration and credentials are handled server-side.
-    """
-    logger.info(f"Ingesting document for owner {owner_id}")
+    """Ingest a document into DataBridge."""
+    logger.info(f"Ingesting document for {auth.type}")
 
-    # Add owner_id to metadata
-    request.metadata['owner_id'] = owner_id
+    # Generate document ID for all chunks.
+    doc_id = str(uuid.uuid4())
 
-    # Create document
-    doc = Document(request.content, request.metadata, owner_id)
+    # Set up system metadata.
+    system_metadata = SystemMetadata(doc_id=doc_id)
+    if auth.type == AuthType.DEVELOPER:
+        system_metadata.dev_id = auth.dev_id
+        system_metadata.app_id = auth.app_id
+        if request.eu_id:
+            system_metadata.eu_id = request.eu_id
+    else:
+        system_metadata.eu_id = auth.eu_id
 
-    # Parse into chunks
+    # Parse into chunks.
     chunk_texts = service.parser.parse(request.content, request.metadata)
     embeddings = await service.embedding_model.embed_for_ingestion(chunk_texts)
-    # Create embeddings and chunks
+
+    # Create chunks.
     chunks = []
-    for embedding, chunk_text in zip(embeddings, chunk_texts):
-        chunk = DocumentChunk(chunk_text, embedding, doc.id)
-        chunk.metadata = {
-            'owner_id': owner_id,
-            **request.metadata
-        }
+    for text, embedding in zip(chunk_texts, embeddings):
+        # Set source and permissions based on context.
+        if auth.type == AuthType.DEVELOPER:
+            source = Source.APP
+            permissions = {auth.app_id: {Permission.READ, Permission.WRITE, Permission.DELETE}} if request.eu_id else {}
+        else:
+            source = Source.SELF_UPLOADED
+            permissions = {}
+
+        chunk = DocumentChunk(
+            content=text,
+            embedding=embedding,
+            metadata=request.metadata,
+            system_metadata=system_metadata,
+            source=source,
+            permissions=permissions
+        )
         chunks.append(chunk)
 
-    # Store in vector store
+    # Store in vector store.
     if not service.vector_store.store_embeddings(chunks):
         raise DataBridgeException(
             "Failed to store embeddings",
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-    return IngestResponse(document_id=doc.id)
+    return IngestResponse(document_id=doc_id)
 
 
 @app.post("/query", response_model=QueryResponse)
 async def query_documents(
     request: QueryRequest,
-    owner_id: str = Depends(verify_auth)
+    auth: AuthContext = Depends(verify_auth)
 ) -> QueryResponse:
     """
     Query documents in DataBridge.
     All configuration and credentials are handled server-side.
     """
-    logger.info(f"Processing query for owner {owner_id}")
+    logger.info(f"Processing query for owner {auth.type}")
     # Create plan
     plan = service.planner.plan_retrieval(request.query, k=request.k)
-
-    # Get query embedding
     query_embedding = await service.embedding_model.embed_for_query(request.query)
 
     # Query vector store
     chunks = service.vector_store.query_similar(
         query_embedding,
         k=plan["k"],
-        owner_id=owner_id,
+        auth=auth,
         filters=request.filters
     )
 
-    # Format results
     results = [
         {
             "content": chunk.content,
-            "doc_id": chunk.doc_id,
-            "chunk_id": chunk.id,
-            "score": getattr(chunk, "score", None),
-            "metadata": {k:v for k,v in chunk.metadata.items() if k != 'owner_id'}
+            "doc_id": chunk.system_metadata.doc_id,
+            "score": chunk.score,
+            "metadata": chunk.metadata
         }
         for chunk in chunks
     ]

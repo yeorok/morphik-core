@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import List
-from core.document import DocumentChunk
+from typing import Any, Dict, List, Optional
+from core.document import AuthContext, DocumentChunk
 
 
 class BaseVectorStore(ABC):
@@ -10,6 +10,6 @@ class BaseVectorStore(ABC):
         pass
 
     @abstractmethod
-    def query_similar(self, query_embedding: List[float], k: int, owner_id: str) -> List[DocumentChunk]:
+    def query_similar(self, query_embedding: List[float], k: int, auth: AuthContext, filters: Optional[Dict[str, Any]] = None) -> List[DocumentChunk]:
         """Find similar chunks"""
         pass

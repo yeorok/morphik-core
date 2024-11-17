@@ -3,15 +3,23 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "databridge-client"
+name = "databridge"
 version = "0.1.0"
-description = "Python client for DataBridge RAG service"
+authors = [
+    { name = "Your Name", email = "your.email@example.com" },
+]
+description = "DataBridge Python Client"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "httpx>=0.24.0",
-    "pyjwt>=2.0.0"
+    "pyjwt>=2.0.0",
 ]
 
-[project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "black", "isort"]
+[tool.hatch.build.targets.wheel]
+packages = ["databridge"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/databridge",
+]

@@ -7,24 +7,33 @@ from datetime import UTC, datetime, timedelta
 from dotenv import load_dotenv
 import jwt
 
-# we can't pip install, this basically acts like pip install.
-sdk_root = Path(__file__).parent.parent
-sys.path.append(str(sdk_root))
-
-from databridge import DataBridge, ContentType, DataBridgeError
+from databridge import DataBridge, DataBridgeError
 
 
-def create_test_uri():
-    """Create a test URI with a valid JWT token"""
+def create_developer_test_uri():
+    """Create a test URI for developer"""
     token = jwt.encode(
         {
-            'owner_id': 'test_user_123',
+            'type': 'developer',
             'exp': datetime.now(UTC) + timedelta(days=30)
         },
         "your-secret-key-for-signing-tokens",
         algorithm='HS256'
     )
-    return f"databridge://test_user_123:{token}@localhost:8000"
+    return f"databridge://dev_123.app_456:{token}@localhost:8000"
+
+
+def create_user_test_uri():
+    """Create a test URI for end user"""
+    token = jwt.encode(
+        {
+            'type': 'user',
+            'exp': datetime.now(UTC) + timedelta(days=30)
+        },
+        "your-secret-key-for-signing-tokens",
+        algorithm='HS256'
+    )
+    return f"databridge://user_789:{token}@localhost:8000"
 
 
 async def example_text():
@@ -35,7 +44,7 @@ async def example_text():
     if not uri:
         raise ValueError("Please set DATABRIDGE_URI environment variable")
 
-    db = DataBridge(create_test_uri())
+    db = DataBridge(create_developer_test_uri())
     
     try:
         # Ingest a simple text document
@@ -59,7 +68,7 @@ async def example_text():
         # Query the document
         results = await db.query(
             query="What is machine learning?",
-            k=1  # Get top result
+            k=1  # Get top result,
         )
         
         print("\nQuery Results:")
@@ -78,18 +87,14 @@ async def example_text():
 async def example_pdf():
     """Example of ingesting and querying PDF documents"""
     print("\n=== PDF Document Example ===")
-    
-    uri = os.getenv("DATABRIDGE_URI")
-    if not uri:
-        raise ValueError("Please set DATABRIDGE_URI environment variable")
 
-
-    pdf_path = Path(__file__).parent / "sample.pdf"
+    # pdf_path = Path(__file__).parent / "sample.pdf"
+    pdf_path = Path(__file__).parent / "trial.png"
     if not pdf_path.exists():
         print("× sample.pdf not found in examples directory")
         return
 
-    db = DataBridge(uri)
+    db = DataBridge(create_developer_test_uri())
     
     try:
         # Read and ingest PDF
@@ -98,22 +103,21 @@ async def example_pdf():
 
         doc_id = await db.ingest_document(
             content=pdf_content,
-            metadata={
-                "title": "Sample Document",
-                "source": "examples",
-                "file_type": "pdf"
-            },
-            content_type=ContentType.PDF
+            # metadata={
+            #     "title": "Sample Document",
+            #     "source": "examples",
+            #     "file_type": "pdf"
+            # }
         )
         print(f"✓ PDF ingested successfully (ID: {doc_id})")
 
         # Query the PDF content
         results = await db.query(
-            query="What is the main topic of this document?",
+            query="Brandsync repair!",
             k=2,  # Get top 2 results
-            filters={"file_type": "pdf"}  # Only search PDF documents
+            # filters={"file_type": "pdf"}  # Only search PDF documents
         )
-        
+
         print("\nQuery Results:")
         for i, result in enumerate(results, 1):
             print(f"\nResult {i}:")
@@ -123,7 +127,7 @@ async def example_pdf():
 
     except DataBridgeError as e:
         print(f"× Error: {str(e)}")
-    
+
     finally:
         await db.close()
 
@@ -136,7 +140,7 @@ async def example_batch():
     if not uri:
         raise ValueError("Please set DATABRIDGE_URI environment variable")
 
-    db = DataBridge(uri)
+    db = DataBridge(create_developer_test_uri())
     
     try:
         # Prepare multiple documents
@@ -187,9 +191,9 @@ async def example_batch():
 async def main():
     """Run all examples"""
     try:
-        await example_text()
+        # await example_text()
         await example_pdf()
-        await example_batch()
+        # await example_batch()
     except Exception as e:
         print(f"× Main error: {str(e)}")
 
