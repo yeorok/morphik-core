@@ -37,6 +37,8 @@ class SystemMetadata:
     app_id: Optional[str] = None
     eu_id: Optional[str] = None
     doc_id: str = None
+    s3_bucket: str = None
+    s3_key: str = None
 
 
 class DocumentChunk:

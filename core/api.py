@@ -13,6 +13,7 @@ from .embedding_model.openai_embedding_model import OpenAIEmbeddingModel
 from .parser.unstructured_parser import UnstructuredAPIParser
 from .planner.simple_planner import SimpleRAGPlanner
 from .document import DocumentChunk, Permission, Source, SystemMetadata, AuthContext, AuthType
+from .utils.aws_utils import get_s3_client, upload_from_encoded_string
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -185,9 +186,11 @@ async def ingest_document(
 
     # Generate document ID for all chunks.
     doc_id = str(uuid.uuid4())
+    s3_client = get_s3_client()
+    s3_bucket, s3_key = upload_from_encoded_string(s3_client, request.content, doc_id)
 
     # Set up system metadata.
-    system_metadata = SystemMetadata(doc_id=doc_id)
+    system_metadata = SystemMetadata(doc_id=doc_id, s3_bucket=s3_bucket, s3_key=s3_key)
     if auth.type == AuthType.DEVELOPER:
         system_metadata.dev_id = auth.dev_id
         system_metadata.app_id = auth.app_id

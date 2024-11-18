@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from dotenv import load_dotenv
 import jwt
 
-from databridge import DataBridge, DataBridgeError
+from ..databridge import DataBridge, DataBridgeError
 
 
 def create_developer_test_uri():
@@ -20,7 +20,7 @@ def create_developer_test_uri():
         "your-secret-key-for-signing-tokens",
         algorithm='HS256'
     )
-    return f"databridge://dev_16.app_456:{token}@localhost:8000"
+    return f"databridge://dev_16.app_456:{token}@localhost:443"
 
 
 def create_user_test_uri():
