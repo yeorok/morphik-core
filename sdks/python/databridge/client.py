@@ -6,6 +6,7 @@ from datetime import datetime, UTC
 import asyncio
 from dataclasses import dataclass
 from .exceptions import AuthenticationError
+from pydantic import BaseModel, Field
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,28 @@ class QueryResult:
     doc_id: str
     score: Optional[float]
     metadata: Dict[str, Any]
+
+# Request/Response Models
+class Document(BaseModel):
+    id: str
+    name: str
+    type: str
+    source: str
+    uploaded_at: str
+    size: str
+    redaction_level: str
+    stats: Dict[str, Union[int, str]] = Field(
+        default_factory=lambda: {
+            "ai_queries": 0,
+            "time_saved": "0h",
+            "last_accessed": ""
+        }
+    )
+    accessed_by: List[Dict[str, str]] = Field(default_factory=list)
+    sensitive_content: Optional[List[str]] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    s3_bucket: Optional[str] = None
+    s3_key: Optional[str] = None
 
 
 class DataBridge:
@@ -111,7 +134,8 @@ class DataBridge:
     async def ingest_document(
         self,
         content: Union[str, bytes],
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        filename: Optional[str] = None
     ) -> str:
         """
         Ingest a document into DataBridge.
@@ -119,18 +143,19 @@ class DataBridge:
         Args:
             content: Document content (string or bytes)
             metadata: Optional document metadata
-            content_type: Type of the content being ingested
-
+            filename: Optional filename - defaults to doc_id if not provided
         Returns:
             Document ID of the ingested document
         """
+        metadata = metadata or {}
+        if filename:
+            metadata["filename"] = filename
+
         if isinstance(content, bytes):
             import base64
             content = base64.b64encode(content).decode()
-            metadata = metadata or {}
+            metadata = metadata
             metadata["is_base64"] = True
-
-        metadata = metadata or {}
 
         response = await self._make_request(
             "POST",
@@ -179,6 +204,11 @@ class DataBridge:
             )
             for result in response["results"]
         ]
+    
+    async def get_documents(self) -> List[Document]:
+        """Get all documents"""
+        response = await self._make_request("GET", "documents")
+        return [Document(**doc) for doc in response]
 
     async def close(self):
         """Close the HTTP client"""

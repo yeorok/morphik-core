@@ -39,6 +39,7 @@ class SystemMetadata:
     doc_id: str = None
     s3_bucket: str = None
     s3_key: str = None
+    filename: Optional[str] = None
 
 
 class DocumentChunk:
