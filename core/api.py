@@ -15,7 +15,7 @@ from .embedding_model.openai_embedding_model import OpenAIEmbeddingModel
 from .parser.unstructured_parser import UnstructuredAPIParser
 from .planner.simple_planner import SimpleRAGPlanner
 from .document import DocumentChunk, Permission, Source, SystemMetadata, AuthContext, AuthType
-from .utils.aws_utils import get_s3_client, upload_from_encoded_string
+from .utils.aws_utils import get_s3_client, upload_from_encoded_string, create_presigned_url
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -149,11 +149,15 @@ class Document(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     s3_bucket: Optional[str] = None
     s3_key: Optional[str] = None
+    presigned_url: Optional[str] = None
 
     @classmethod
     def from_mongo(cls, data: Dict[str, Any]) -> "Document":
         """Create from MongoDB document"""
         # Convert MongoDB document to Document model
+        s3_key = data.get("system_metadata", {}).get("s3_key")
+        s3_bucket = data.get("system_metadata", {}).get("s3_bucket")
+        presigned_url = create_presigned_url(get_s3_client(), s3_bucket, s3_key)
         return cls(
             id=str(data.get("_id")),
             name=data.get("system_metadata", {}).get("filename") or "Untitled",
@@ -169,8 +173,9 @@ class Document(BaseModel):
             },
             accessed_by=[],
             metadata=data.get("metadata", {}),
-            s3_bucket=data.get("system_metadata", {}).get("s3_bucket"),
-            s3_key=data.get("system_metadata", {}).get("s3_key")
+            s3_bucket=s3_bucket,
+            s3_key=s3_key,
+            presigned_url=presigned_url
         )
 
 
@@ -224,20 +229,39 @@ async def error_handler(request: Request, call_next):
         )
     
 
+#TODO: This is not complete - only returns s3 urls, we need to find a way to make itwork over regular content also or make ti work for preseigned urls.
 @app.get("/documents", response_model=List[Document])
 async def get_documents(auth: AuthContext = Depends(verify_auth)) -> List[Document]:
-    """Get all documents"""
-    filter = {
-        "$or": [
-            {"system_metadata.dev_id": auth.dev_id},  # Dev's own docs
-            {"permissions": {"$in": [auth.app_id]}}  # Docs app has access to
-        ]
-    } if auth.type == AuthType.DEVELOPER else {"system_metadata.eu_id": auth.eu_id}
+    """Get all document files. Content ingested as string will have an empty presigned url field."""
+    match_stage = {
+        "$match": {
+            "$or": [
+                {"system_metadata.dev_id": auth.dev_id},  # Dev's own docs
+                {"permissions": {"$in": [auth.app_id]}}  # Docs app has access to
+            ]
+        } if auth.type == AuthType.DEVELOPER else {"system_metadata.eu_id": auth.eu_id}
+    }
 
-    documents = {doc["_id"]: doc for doc in service.database.find(filter)}.values()
+    pipeline = [
+        match_stage,
+        {
+            "$group": {
+                "_id": "$system_metadata.s3_key",
+                "doc": {"$first": "$$ROOT"}
+            }
+        },
+        {
+            "$replaceRoot": {"newRoot": "$doc"}
+        }
+    ]
+
+    documents = list(service.database.aggregate(pipeline))
     return [Document.from_mongo(doc) for doc in documents]
 
 
+# TODO: Move to the way brandsync stored embeddings and documents separately - 
+# all the metadata and all info is stored in one collection, and embeddings stored 
+# in another store. (seperation of concerns)
 @app.post("/ingest", response_model=IngestResponse)
 async def ingest_document(
     request: IngestRequest,

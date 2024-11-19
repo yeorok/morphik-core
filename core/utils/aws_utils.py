@@ -88,14 +88,16 @@ def upload_image_to_s3(thumbnail_path: Path, thumbnail_name: str):
     )
 
 
-def create_presigned_url(s3_client, bucket_name, object_name, expiration=3600):
+def create_presigned_url(s3_client, bucket_name, object_name, expiration=3600) -> str:
+    if not object_name or not bucket_name:
+        return ""
     try:
         response = s3_client.generate_presigned_url(
             "get_object", Params={"Bucket": bucket_name, "Key": object_name}, ExpiresIn=expiration
         )
     except ClientError as e:
         logging.error(e)
-        return None
+        return ""
     return response
 
 

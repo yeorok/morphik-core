@@ -7,7 +7,8 @@ from datetime import UTC, datetime, timedelta
 from dotenv import load_dotenv
 import jwt
 
-from ..databridge import DataBridge, DataBridgeError
+# pip install -e ./sdks/python
+from databridge import DataBridge, DataBridgeError
 
 
 def create_developer_test_uri():
@@ -20,7 +21,7 @@ def create_developer_test_uri():
         "your-secret-key-for-signing-tokens",
         algorithm='HS256'
     )
-    return f"databridge://dev_16.app_456:{token}@localhost:443"
+    return f"databridge://673b64dcb6e40d739a9b6e2a:{token}@localhost:8000"
 
 
 def create_user_test_uri():
@@ -199,9 +200,9 @@ async def example_get_documents():
 async def main():
     """Run all examples"""
     try:
-        await example_text()
-        await example_pdf()
-        await example_batch()
+        # await example_text()
+        # await example_pdf()
+        # await example_batch()
         await example_get_documents()
     except Exception as e:
         print(f"× Main error: {str(e)}")

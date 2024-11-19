@@ -41,6 +41,7 @@ class Document(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     s3_bucket: Optional[str] = None
     s3_key: Optional[str] = None
+    presigned_url: Optional[str] = None
 
 
 class DataBridge:
