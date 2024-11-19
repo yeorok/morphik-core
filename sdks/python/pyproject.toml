@@ -4,9 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "databridge-client"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
-    { name = "Your Name", email = "your.email@example.com" },
+    { name = "DataBridge", email = "databridgesuperuser@gmail.com" },
 ]
 description = "DataBridge Python Client"
 readme = "README.md"

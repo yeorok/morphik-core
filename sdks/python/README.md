@@ -8,7 +8,7 @@ A Python client for DataBridge API that enables document ingestion and semantic 
 pip install databridge-client
 ```
 
-```
+```python
 from databridge import DataBridge
 
 # Initialize client
