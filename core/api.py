@@ -1,4 +1,6 @@
 import uuid
+from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -227,9 +229,8 @@ async def error_handler(request: Request, call_next):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": "Internal server error"}
         )
-    
 
-#TODO: This is not complete - only returns s3 urls, we need to find a way to make itwork over regular content also or make ti work for preseigned urls.
+
 @app.get("/documents", response_model=List[Document])
 async def get_documents(auth: AuthContext = Depends(verify_auth)) -> List[Document]:
     """Get all document files. Content ingested as string will have an empty presigned url field."""
@@ -257,6 +258,42 @@ async def get_documents(auth: AuthContext = Depends(verify_auth)) -> List[Docume
 
     documents = list(service.database.aggregate(pipeline))
     return [Document.from_mongo(doc) for doc in documents]
+
+
+@app.get("/document/{doc_id}", response_model=Document)
+async def get_document_by_id(
+    doc_id: str,
+    auth: AuthContext = Depends(verify_auth)
+) -> Document:
+    try:
+        obj_id = ObjectId(doc_id)
+    except InvalidId:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid document ID format"
+        )
+
+    query = {
+        "_id": obj_id,
+        "$or": [
+            {"system_metadata.dev_id": auth.dev_id},
+            {"permissions": {"$in": [auth.app_id]}}
+        ]
+    } if auth.type == AuthType.DEVELOPER else {
+        "_id": obj_id,
+        "system_metadata.eu_id": auth.eu_id
+    }
+
+    # Try to fetch the document
+    document = service.database.find_one(query)
+
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found or you don't have permission to access it"
+        )
+
+    return Document.from_mongo(document)
 
 
 # TODO: Move to the way brandsync stored embeddings and documents separately - 

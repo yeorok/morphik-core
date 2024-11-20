@@ -205,11 +205,16 @@ class DataBridge:
             )
             for result in response["results"]
         ]
-    
+
     async def get_documents(self) -> List[Document]:
         """Get all documents"""
         response = await self._make_request("GET", "documents")
         return [Document(**doc) for doc in response]
+
+    async def get_document_by_id(self, id: str) -> List[Document]:
+        """Get all documents"""
+        response = await self._make_request("GET", f'document/{id}')
+        return Document(**response)
 
     async def close(self):
         """Close the HTTP client"""

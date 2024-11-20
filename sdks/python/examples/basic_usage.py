@@ -197,13 +197,23 @@ async def example_get_documents():
     documents = await db.get_documents()
     print(documents)
 
+async def example_get_document_by_id(id: str):
+    """Example of getting documents"""
+    print("\n=== Get Documents Example ===")
+
+    db = DataBridge(create_developer_test_uri())
+    documents = await db.get_document_by_id(id)
+    print(documents)
+
+
 async def main():
     """Run all examples"""
     try:
         # await example_text()
         # await example_pdf()
         # await example_batch()
-        await example_get_documents()
+        # await example_get_documents()
+        await example_get_document_by_id('673cb75886809b44b5c9d553');
     except Exception as e:
         print(f"× Main error: {str(e)}")
 
