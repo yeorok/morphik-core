@@ -5,6 +5,10 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
 import tempfile
 import base64
+import nltk
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class UnstructuredAPIParser(BaseParser):
@@ -19,6 +23,14 @@ class UnstructuredAPIParser(BaseParser):
         self.api_url = api_url
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        
+        # Download required NLTK data
+        try:
+            nltk.data.find('tokenizers/punkt')
+        except LookupError:
+            logger.info("Downloading NLTK punkt tokenizer...")
+            nltk.download('punkt', quiet=True)
+            
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
@@ -32,9 +44,16 @@ class UnstructuredAPIParser(BaseParser):
             # Create temporary file for content
             with tempfile.NamedTemporaryFile(delete=False, suffix=self._get_file_extension(metadata)) as temp_file:
                 if metadata.get("is_base64", False):
-                    temp_file.write(base64.b64decode(content))
+                    try:
+                        decoded_content = base64.b64decode(content)
+                    except Exception as e:
+                        logger.error(f"Failed to decode base64 content: {str(e)}")
+                        # If base64 decode fails, try treating as plain text
+                        decoded_content = content.encode('utf-8')
                 else:
-                    temp_file.write(content.encode('utf-8'))
+                    decoded_content = content.encode('utf-8')
+                
+                temp_file.write(decoded_content)
                 temp_file_path = temp_file.name
 
             try:
@@ -50,12 +69,21 @@ class UnstructuredAPIParser(BaseParser):
                 full_text = "\n\n".join(str(element) for element in elements)
                 chunks = self.text_splitter.split_text(full_text)
 
+                if not chunks:
+                    # If no chunks were created, use the full text as a single chunk
+                    logger.warning("No chunks created, using full text as single chunk")
+                    return [full_text] if full_text.strip() else []
+
                 return chunks
             finally:
                 # Clean up temporary file
-                os.unlink(temp_file_path)
+                try:
+                    os.unlink(temp_file_path)
+                except Exception as e:
+                    logger.error(f"Failed to delete temporary file: {str(e)}")
 
         except Exception as e:
+            logger.error(f"Error parsing document: {str(e)}")
             raise Exception(f"Error parsing document: {str(e)}")
 
     def _get_file_extension(self, metadata: Dict[str, Any]) -> str:

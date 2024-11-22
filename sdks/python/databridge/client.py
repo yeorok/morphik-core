@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from .exceptions import AuthenticationError
 from pydantic import BaseModel, Field
 import logging
-
+import base64
 logger = logging.getLogger(__name__)
 
 
@@ -20,7 +20,7 @@ class QueryResult:
     score: Optional[float]
     metadata: Dict[str, Any]
 
-# Request/Response Models
+
 class Document(BaseModel):
     id: str
     name: str
@@ -152,17 +152,28 @@ class DataBridge:
         if filename:
             metadata["filename"] = filename
 
+        # Handle content encoding
         if isinstance(content, bytes):
-            import base64
-            content = base64.b64encode(content).decode()
-            metadata = metadata
+            encoded_content = base64.b64encode(content).decode('utf-8')
             metadata["is_base64"] = True
+        elif isinstance(content, str):
+            try:
+                # Check if the string is already base64
+                base64.b64decode(content)
+                encoded_content = content
+                metadata["is_base64"] = True
+            except:
+                # If not base64, encode it
+                encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+                metadata["is_base64"] = True
+        else:
+            raise ValueError("Content must be either string or bytes")
 
         response = await self._make_request(
             "POST",
             "ingest",
             {
-                "content": content,
+                "content": encoded_content,
                 "metadata": metadata
             }
         )
