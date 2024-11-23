@@ -1,6 +1,6 @@
 from datetime import datetime, UTC
-from typing import List, Union
-from fastapi import FastAPI, HTTPException, Depends, Header
+from typing import List, Union, Dict, Set
+from fastapi import FastAPI, HTTPException, Depends, Header, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 import jwt
 
@@ -20,6 +20,7 @@ from .vector_store import MongoDBAtlasVectorStore
 from .storage import S3Storage
 from .parser import UnstructuredAPIParser
 from .embedding_model import OpenAIEmbeddingModel
+from .services.uri_service import get_uri_service
 
 
 # Initialize FastAPI app
@@ -154,3 +155,61 @@ async def get_document(
         return doc
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+auth_router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@auth_router.post("/developer-token")
+async def create_developer_token(
+    dev_id: str,
+    app_id: str = None,
+    expiry_days: int = 30,
+    permissions: Set[str] = None,
+    auth: AuthContext = Depends(verify_token)
+) -> Dict[str, str]:
+    """Create a developer access URI."""
+    # Verify requesting user has admin permissions
+    if "admin" not in auth.permissions:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin permissions required"
+        )
+
+    uri_service = get_uri_service()
+    uri = uri_service.create_developer_uri(
+        dev_id=dev_id,
+        app_id=app_id,
+        expiry_days=expiry_days,
+        permissions=permissions
+    )
+
+    return {"uri": uri}
+
+
+@auth_router.post("/user-token")
+async def create_user_token(
+    user_id: str,
+    expiry_days: int = 30,
+    permissions: Set[str] = None,
+    auth: AuthContext = Depends(verify_token)
+) -> Dict[str, str]:
+    """Create a user access URI."""
+    # Verify requesting user has admin permissions
+    if "admin" not in auth.permissions:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin permissions required"
+        )
+
+    uri_service = get_uri_service()
+    uri = uri_service.create_user_uri(
+        user_id=user_id,
+        expiry_days=expiry_days,
+        permissions=permissions
+    )
+
+    return {"uri": uri}
+
+# Add to your main FastAPI app
+app.include_router(auth_router)
