@@ -4,8 +4,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import PyMongoError
 
 from .base_vector_store import BaseVectorStore
-from ..models.documents import DocumentChunk
-from ..models.auth import AuthContext, EntityType
+from core.models.documents import DocumentChunk
+from core.models.auth import AuthContext, EntityType
 
 logger = logging.getLogger(__name__)
 

@@ -4,6 +4,7 @@ import pytest
 from typing import Generator
 import os
 from dotenv import load_dotenv
+
 root_dir = Path(__file__).parent.parent.parent
 sdk_path = str(root_dir / "sdks" / "python")
 core_path = str(root_dir)

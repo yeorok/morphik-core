@@ -15,11 +15,11 @@ from .models.documents import (
 from .models.auth import AuthContext
 from .services.document_service import DocumentService
 from .config import get_settings
-from .database import MongoDatabase
-from .vector_store import MongoDBAtlasVectorStore
-from .storage import S3Storage
-from .parser import UnstructuredAPIParser
-from .embedding_model import OpenAIEmbeddingModel
+from .database.mongo_database import MongoDatabase
+from .vector_store.mongo_vector_store import MongoDBAtlasVectorStore
+from .storage.s3_storage import S3Storage
+from .parser.unstructured_parser import UnstructuredAPIParser
+from .embedding_model.openai_embedding_model import OpenAIEmbeddingModel
 from .services.uri_service import get_uri_service
 
 

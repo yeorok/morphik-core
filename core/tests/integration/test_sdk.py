@@ -6,11 +6,11 @@ import pytest
 from typing import Generator
 from datetime import datetime, timedelta, UTC
 import jwt
-# from databridge-client import DataBridge
 
 sdk_path = str(Path(__file__).parent.parent.parent / "sdks" / "python")
 sys.path.append(sdk_path)
 
+from databridge import DataBridge
 # Test data directory
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
 
