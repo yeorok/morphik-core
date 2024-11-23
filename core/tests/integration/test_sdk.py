@@ -59,8 +59,7 @@ def setup_test_files():
     # PDF file (create a simple one)
     pdf_file = TEST_DATA_DIR / "test.pdf"
     if not pdf_file.exists():
-        # TODO: Create a test PDF
-        pass
+        raise NotImplementedError("Test PDF not present")
 
 async def test_text_ingestion(db: DataBridge, setup_test_files):
     """Test ingesting a text document"""

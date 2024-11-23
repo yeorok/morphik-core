@@ -15,7 +15,8 @@ def create_auth_header(entity_type: str = "developer", permissions: list = None)
             "permissions": permissions or ["read", "write"],
             "exp": datetime.now(UTC) + timedelta(days=1)
         },
-        "test-secret"
+        # TODO: Use settings.JWT_SECRET_KEY
+        "your-secret-key-for-signing-tokens"
     )
     return {"Authorization": f"Bearer {token}"}
 
@@ -39,6 +40,7 @@ def test_ingest_document(client):
         },
         headers=headers
     )
+    print(response.json())
     assert response.status_code == 200
     data = response.json()
     assert data["external_id"]
