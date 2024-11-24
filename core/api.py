@@ -1,26 +1,35 @@
+import json
 from datetime import datetime, UTC
 from typing import List, Union, Dict, Set
-from fastapi import FastAPI, HTTPException, Depends, Header, APIRouter
+from fastapi import (
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Depends,
+    Header,
+    APIRouter,
+    UploadFile
+)
 from fastapi.middleware.cors import CORSMiddleware
 import jwt
 
-from core.models.request import IngestRequest, QueryRequest
-
-from .models.documents import (
+from core.models.request import IngestTextRequest, QueryRequest
+from core.models.documents import (
     Document,
     DocumentResult,
     ChunkResult,
     EntityType
 )
-from .models.auth import AuthContext
-from .services.document_service import DocumentService
-from .config import get_settings
-from .database.mongo_database import MongoDatabase
-from .vector_store.mongo_vector_store import MongoDBAtlasVectorStore
-from .storage.s3_storage import S3Storage
-from .parser.unstructured_parser import UnstructuredAPIParser
-from .embedding_model.openai_embedding_model import OpenAIEmbeddingModel
-from .services.uri_service import get_uri_service
+from core.models.auth import AuthContext
+from core.services.document_service import DocumentService
+from core.config import get_settings
+from core.database.mongo_database import MongoDatabase
+from core.vector_store.mongo_vector_store import MongoDBAtlasVectorStore
+from core.storage.s3_storage import S3Storage
+from core.parser.unstructured_parser import UnstructuredAPIParser
+from core.embedding_model.openai_embedding_model import OpenAIEmbeddingModel
+from core.services.uri_service import get_uri_service
 
 
 # Initialize FastAPI app
@@ -75,8 +84,14 @@ document_service = DocumentService(
 )
 
 
-async def verify_token(authorization: str = Header(...)) -> AuthContext:
+async def verify_token(authorization: str = Header(None)) -> AuthContext:
     """Verify JWT Bearer token."""
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing authorization header",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
     try:
         if not authorization.startswith("Bearer "):
             raise HTTPException(
@@ -104,15 +119,30 @@ async def verify_token(authorization: str = Header(...)) -> AuthContext:
         raise HTTPException(status_code=401, detail=str(e))
 
 
-# API endpoints
-@app.post("/documents", response_model=Document)
-async def ingest_document(
-    request: IngestRequest,
+@app.post("/documents/text", response_model=Document)
+async def ingest_text(
+    request: IngestTextRequest,
     auth: AuthContext = Depends(verify_token)
 ) -> Document:
-    """Ingest a new document."""
+    """Ingest a text document."""
     try:
-        return await document_service.ingest_document(request, auth)
+        return await document_service.ingest_text(request, auth)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/documents/file", response_model=Document)
+async def ingest_file(
+    file: UploadFile = File(...),
+    metadata: str = Form("{}"),  # JSON string of metadata
+    auth: AuthContext = Depends(verify_token)
+) -> Document:
+    """Ingest a file document."""
+    try:
+        metadata_dict = json.loads(metadata)
+        return await document_service.ingest_file(file, metadata_dict, auth)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "Invalid metadata JSON")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

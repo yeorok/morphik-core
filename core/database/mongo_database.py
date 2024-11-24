@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ReturnDocument
@@ -20,7 +20,7 @@ class MongoDatabase(BaseDatabase):
         self,
         uri: str,
         db_name: str,
-        collection_name: str = "documents"
+        collection_name: str,
     ):
         """Initialize MongoDB connection for document storage."""
         self.client = AsyncIOMotorClient(uri)
@@ -32,7 +32,7 @@ class MongoDatabase(BaseDatabase):
         try:
             # Create indexes for common queries
             await self.collection.create_index("external_id", unique=True)
-            await self.collection.create_index("access_control.owner.id")
+            await self.collection.create_index("owner.id")
             await self.collection.create_index("access_control.readers")
             await self.collection.create_index("access_control.writers")
             await self.collection.create_index("access_control.admins")
@@ -50,8 +50,8 @@ class MongoDatabase(BaseDatabase):
             doc_dict = document.model_dump()
             
             # Ensure system metadata
-            doc_dict["system_metadata"]["created_at"] = datetime.utcnow()
-            doc_dict["system_metadata"]["updated_at"] = datetime.utcnow()
+            doc_dict["system_metadata"]["created_at"] = datetime.now(UTC)
+            doc_dict["system_metadata"]["updated_at"] = datetime.now(UTC)
 
             result = await self.collection.insert_one(doc_dict)
             return bool(result.inserted_id)
@@ -190,9 +190,8 @@ class MongoDatabase(BaseDatabase):
             access_control = doc.get("access_control", {})
             
             # Check owner access
-            owner = access_control.get("owner", {})
-            if (owner.get("type") == auth.entity_type and 
-                owner.get("id") == auth.entity_id):
+            owner = doc.get("owner", {})
+            if (owner.get("type") == auth.entity_type and owner.get("id") == auth.entity_id):
                 return True
 
             # Check permission-specific access
@@ -216,7 +215,7 @@ class MongoDatabase(BaseDatabase):
         """Build MongoDB filter for access control."""
         base_filter = {
             "$or": [
-                {"access_control.owner.id": auth.entity_id},
+                {"owner.id": auth.entity_id},
                 {"access_control.readers": auth.entity_id},
                 {"access_control.writers": auth.entity_id},
                 {"access_control.admins": auth.entity_id}

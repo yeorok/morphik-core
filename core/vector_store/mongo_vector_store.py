@@ -136,17 +136,17 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
         """Build MongoDB filter for access control."""
         base_filter = {
             "$or": [
-                {"metadata.owner.id": auth.entity_id},
-                {"metadata.readers": auth.entity_id},
-                {"metadata.writers": auth.entity_id},
-                {"metadata.admins": auth.entity_id}
+                {"owner.id": auth.entity_id},
+                {"access_control.readers": auth.entity_id},
+                {"access_control.writers": auth.entity_id},
+                {"access_control.admins": auth.entity_id}
             ]
         }
 
         if auth.entity_type == EntityType.DEVELOPER and auth.app_id:
             # Add app-specific access for developers
             base_filter["$or"].append(
-                {"metadata.app_access": auth.app_id}
+                {"access_control.app_access": auth.app_id}
             )
             
         return base_filter

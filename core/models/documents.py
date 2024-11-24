@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional, Literal
 from enum import Enum
-from datetime import datetime
+from datetime import UTC, datetime
 from pydantic import BaseModel, Field, field_validator
 import uuid
 
@@ -18,23 +18,23 @@ class QueryReturnType(str, Enum):
 class Document(BaseModel):
     """Represents a document stored in MongoDB documents collection"""
     external_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    owner: Dict[str, str]
     content_type: str
     filename: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    storage_info: Dict[str, str] = Field(default_factory=dict)  # s3_bucket, s3_key
+    storage_info: Dict[str, str] = Field(default_factory=dict)
     system_metadata: Dict[str, Any] = Field(
         default_factory=lambda: {
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
             "version": 1
         }
     )
-    access_control: Dict[str, Any] = Field(
+    access_control: Dict[str, List[str]] = Field(
         default_factory=lambda: {
-            "owner": None,
-            "readers": set(),
-            "writers": set(),
-            "admins": set()
+            "readers": [],
+            "writers": [],
+            "admins": []
         }
     )
     chunk_ids: List[str] = Field(default_factory=list)

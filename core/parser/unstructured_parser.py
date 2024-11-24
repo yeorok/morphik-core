@@ -1,12 +1,10 @@
-from typing import Dict, Any, List
-from .base_parser import BaseParser
-from unstructured.partition.auto import partition
+from typing import List, Union
+from fastapi import UploadFile
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-import os
-import tempfile
-import base64
-import nltk
+from unstructured.partition.auto import partition
 import logging
+
+from .base_parser import BaseParser
 
 logger = logging.getLogger(__name__)
 
@@ -17,20 +15,8 @@ class UnstructuredAPIParser(BaseParser):
         api_key: str,
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
-        api_url: str = "https://api.unstructuredapp.io"
     ):
         self.api_key = api_key
-        self.api_url = api_url
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
-        
-        # Download required NLTK data
-        try:
-            nltk.data.find('tokenizers/punkt')
-        except LookupError:
-            logger.info("Downloading NLTK punkt tokenizer...")
-            nltk.download('punkt', quiet=True)
-            
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
@@ -38,63 +24,38 @@ class UnstructuredAPIParser(BaseParser):
             separators=["\n\n", "\n", ". ", " ", ""]
         )
 
-    def parse(self, content: str, metadata: Dict[str, Any]) -> List[str]:
-        """Parse content using Unstructured API and split into chunks."""
+    async def split_text(self, text: str) -> List[str]:
+        """Split plain text into chunks"""
         try:
-            # Create temporary file for content
-            with tempfile.NamedTemporaryFile(delete=False, suffix=self._get_file_extension(metadata)) as temp_file:
-                if metadata.get("is_base64", False):
-                    try:
-                        decoded_content = base64.b64decode(content)
-                    except Exception as e:
-                        logger.error(f"Failed to decode base64 content: {str(e)}")
-                        # If base64 decode fails, try treating as plain text
-                        decoded_content = content.encode('utf-8')
-                else:
-                    decoded_content = content.encode('utf-8')
-                
-                temp_file.write(decoded_content)
-                temp_file_path = temp_file.name
+            return self.text_splitter.split_text(text)
+        except Exception as e:
+            logger.error(f"Failed to split text: {str(e)}")
+            raise
 
-            try:
-                # Use Unstructured API for parsing
-                elements = partition(
-                    filename=temp_file_path,
-                    api_key=self.api_key,
-                    api_url=self.api_url,
-                    partition_via_api=True
-                )
+    async def parse_file(self, file: Union[UploadFile, bytes], content_type: str) -> List[str]:
+        """Parse file content using unstructured"""
+        try:
+            # Handle different file input types
+            if isinstance(file, UploadFile):
+                file_content = await file.read()
+            else:
+                file_content = file
 
-                # Combine elements and split into chunks
-                full_text = "\n\n".join(str(element) for element in elements)
-                chunks = self.text_splitter.split_text(full_text)
+            # Parse with unstructured
+            elements = partition(
+                file=file_content,
+                content_type=content_type,
+                api_key=self.api_key
+            )
 
-                if not chunks:
-                    # If no chunks were created, use the full text as a single chunk
-                    logger.warning("No chunks created, using full text as single chunk")
-                    return [full_text] if full_text.strip() else []
+            # Extract text from elements
+            chunks = []
+            for element in elements:
+                if hasattr(element, 'text') and element.text:
+                    chunks.append(element.text.strip())
 
-                return chunks
-            finally:
-                # Clean up temporary file
-                try:
-                    os.unlink(temp_file_path)
-                except Exception as e:
-                    logger.error(f"Failed to delete temporary file: {str(e)}")
+            return chunks
 
         except Exception as e:
-            logger.error(f"Error parsing document: {str(e)}")
-            raise Exception(f"Error parsing document: {str(e)}")
-
-    def _get_file_extension(self, metadata: Dict[str, Any]) -> str:
-        """Get appropriate file extension based on content type."""
-        content_type_mapping = {
-            'application/pdf': '.pdf',
-            'application/msword': '.doc',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
-            'image/jpeg': '.jpg',
-            'image/png': '.png',
-            'text/plain': '.txt',
-            'text/html': '.html'
-        }
-        return content_type_mapping.get(metadata.get('content_type'), '.txt')
+            logger.error(f"Failed to parse file: {str(e)}")
+            raise
