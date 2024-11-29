@@ -45,6 +45,8 @@ class DocumentService:
         auth: AuthContext
     ) -> Document:
         """Ingest a text document."""
+        if "write" not in auth.permissions:
+            raise PermissionError("User does not have write permission")
         try:
             # 1. Create document record
             doc = Document(
@@ -90,7 +92,7 @@ class DocumentService:
         except Exception as e:
             logger.error(f"Text document ingestion failed: {str(e)}")
             # TODO: Clean up any stored data on failure
-            raise
+            raise e
 
     async def ingest_file(
         self,
@@ -99,6 +101,8 @@ class DocumentService:
         auth: AuthContext
     ) -> Document:
         """Ingest a file document."""
+        if "write" not in auth.permissions:
+            raise PermissionError("User does not have write permission")
         try:
             # 1. Create document record
             doc = Document(
@@ -129,7 +133,7 @@ class DocumentService:
                 "key": storage_info[1]
             }
             logger.info(
-                f"Stored file in bucket {storage_info[0]} with key {storage_info[1]}"
+                f"Stored file in bucket `{storage_info[0]}` with key `{storage_info[1]}`"
             )
 
             # 3. Parse content into chunks
@@ -152,7 +156,7 @@ class DocumentService:
             logger.info(f"Created {len(chunk_objects)} chunk objects")
 
             # 6. Store everything
-            await self._store_chunks_and_doc(chunk_objects, doc)
+            doc.chunk_ids = await self._store_chunks_and_doc(chunk_objects, doc)
             logger.info(f"Successfully stored file document {doc.external_id}")
 
             return doc
@@ -228,10 +232,11 @@ class DocumentService:
         self,
         chunk_objects: List[DocumentChunk],
         doc: Document
-    ) -> None:
+    ) -> List[str]:
         """Helper to store chunks and document"""
         # Store chunks in vector store
-        if not await self.vector_store.store_embeddings(chunk_objects):
+        success, result = await self.vector_store.store_embeddings(chunk_objects)
+        if not success:
             raise Exception("Failed to store chunk embeddings")
         logger.debug("Stored chunk embeddings in vector store")
 
@@ -239,6 +244,8 @@ class DocumentService:
         if not await self.db.store_document(doc):
             raise Exception("Failed to store document metadata")
         logger.debug("Stored document metadata in database")
+
+        return [str(id) for id in result.inserted_ids]
 
     async def _create_chunk_results(
         self,

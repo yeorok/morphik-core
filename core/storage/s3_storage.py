@@ -97,7 +97,7 @@ class S3Storage(BaseStorage):
 
         except Exception as e:
             logger.error(f"Error uploading base64 content to S3: {e}")
-            raise
+            raise e
 
     async def download_file(self, bucket: str, key: str) -> bytes:
         """Download file from S3."""

@@ -1,9 +1,8 @@
 import json
 from datetime import datetime, UTC
-from typing import List, Union, Dict, Set
+from typing import List, Optional, Union, Dict, Set
 from fastapi import (
     FastAPI,
-    File,
     Form,
     HTTPException,
     Depends,
@@ -13,7 +12,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 import jwt
-
+import logging
 from core.models.request import IngestTextRequest, QueryRequest
 from core.models.documents import (
     Document,
@@ -34,6 +33,7 @@ from core.services.uri_service import get_uri_service
 
 # Initialize FastAPI app
 app = FastAPI(title="DataBridge API")
+logger = logging.getLogger(__name__)
 
 # Add CORS middleware
 app.add_middleware(
@@ -119,7 +119,7 @@ async def verify_token(authorization: str = Header(None)) -> AuthContext:
         raise HTTPException(status_code=401, detail=str(e))
 
 
-@app.post("/documents/text", response_model=Document)
+@app.post("/ingest/text", response_model=Document)
 async def ingest_text(
     request: IngestTextRequest,
     auth: AuthContext = Depends(verify_token)
@@ -127,20 +127,25 @@ async def ingest_text(
     """Ingest a text document."""
     try:
         return await document_service.ingest_text(request, auth)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/documents/file", response_model=Document)
+@app.post("/ingest/file", response_model=Document)
 async def ingest_file(
-    file: UploadFile = File(...),
+    file: UploadFile,
     metadata: str = Form("{}"),  # JSON string of metadata
     auth: AuthContext = Depends(verify_token)
 ) -> Document:
     """Ingest a file document."""
     try:
         metadata_dict = json.loads(metadata)
-        return await document_service.ingest_file(file, metadata_dict, auth)
+        doc = await document_service.ingest_file(file, metadata_dict, auth)
+        return doc # Should just send a success response, not sure why we're sending a document #TODO: discuss with bhau
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except json.JSONDecodeError:
         raise HTTPException(400, "Invalid metadata JSON")
     except Exception as e:
@@ -180,9 +185,12 @@ async def get_document(
     """Get document by ID."""
     try:
         doc = await document_service.db.get_document(document_id, auth)
+        logger.info(f"Found document: {doc}")
         if not doc:
             raise HTTPException(status_code=404, detail="Document not found")
         return doc
+    except HTTPException as e:
+        raise e # Return the HTTPException as is 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -193,9 +201,9 @@ auth_router = APIRouter(prefix="/auth", tags=["auth"])
 @auth_router.post("/developer-token")
 async def create_developer_token(
     dev_id: str,
-    app_id: str = None,
+    app_id: Optional[str] = None,
     expiry_days: int = 30,
-    permissions: Set[str] = None,
+    permissions: Optional[Set[str]] = None,
     auth: AuthContext = Depends(verify_token)
 ) -> Dict[str, str]:
     """Create a developer access URI."""
@@ -221,7 +229,7 @@ async def create_developer_token(
 async def create_user_token(
     user_id: str,
     expiry_days: int = 30,
-    permissions: Set[str] = None,
+    permissions: Optional[Set[str]] = None,
     auth: AuthContext = Depends(verify_token)
 ) -> Dict[str, str]:
     """Create a user access URI."""

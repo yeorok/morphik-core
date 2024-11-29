@@ -61,8 +61,8 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
             if documents:
                 # Use ordered=False to continue even if some inserts fail
                 result = await self.collection.insert_many(documents, ordered=False)
-                return len(result.inserted_ids) > 0
-            return False
+                return len(result.inserted_ids) > 0, result
+            return False, None
 
         except PyMongoError as e:
             logger.error(f"Error storing embeddings: {str(e)}")
@@ -79,13 +79,13 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
         try:
             # Build access filter based on auth context
             access_filter = self._build_access_filter(auth)
-            
-            # Add metadata filters if provided
-            filter_query = access_filter
-            if filters:
-                metadata_filter = self._build_metadata_filter(filters)
-                if metadata_filter:
-                    filter_query = {"$and": [access_filter, metadata_filter]}
+            metadata_filter = self._build_metadata_filter(filters)
+            filter_query = {"$and": [access_filter, metadata_filter]} if metadata_filter else access_filter
+
+            logger.debug(f"Query vector looks like: {query_embedding}")
+            logger.debug(f"Filter query looks like: {filter_query}")
+            logger.debug(f"K is: {k}")
+            logger.debug(f"Index is: {self.index_name}")
 
             # Vector search pipeline
             pipeline = [
@@ -94,7 +94,7 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
                         "index": self.index_name,
                         "path": "embedding",
                         "queryVector": query_embedding,
-                        "numCandidates": k * 10,  # Get more candidates for better results
+                        "numCandidates": 150,  # Get more candidates for better results
                         "limit": k,
                         "filter": filter_query
                     }
@@ -113,6 +113,9 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
 
             # Execute search
             cursor = self.collection.aggregate(pipeline)
+            chunk_list = [result async for result in cursor]
+            logger.info(f"Found {len(chunk_list)} similar chunks")
+            logger.info(f"Cursor: {chunk_list}")
             chunks = []
             
             async for result in cursor:
@@ -155,6 +158,7 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
         """Build MongoDB filter for metadata fields."""
         if not filters:
             return {}
+        return filters
             
         metadata_filter = {}
         

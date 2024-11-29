@@ -73,13 +73,16 @@ class MongoDatabase(BaseDatabase):
                     access_filter
                 ]
             }
+            logger.debug(f"Querying document with query: {query}")
 
             doc_dict = await self.collection.find_one(query)
+            logger.debug(f"Found document: {doc_dict}")
             return Document(**doc_dict) if doc_dict else None
             
         except PyMongoError as e:
             logger.error(f"Error retrieving document metadata: {str(e)}")
-            return None
+            raise e
+            # return None
 
     async def get_documents(
         self,

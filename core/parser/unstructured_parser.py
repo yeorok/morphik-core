@@ -1,5 +1,5 @@
-from typing import List, Union
-from fastapi import UploadFile
+from typing import List
+import io
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from unstructured.partition.auto import partition
 import logging
@@ -32,18 +32,12 @@ class UnstructuredAPIParser(BaseParser):
             logger.error(f"Failed to split text: {str(e)}")
             raise
 
-    async def parse_file(self, file: Union[UploadFile, bytes], content_type: str) -> List[str]:
+    async def parse_file(self, file: bytes, content_type: str) -> List[str]:
         """Parse file content using unstructured"""
         try:
-            # Handle different file input types
-            if isinstance(file, UploadFile):
-                file_content = await file.read()
-            else:
-                file_content = file
-
             # Parse with unstructured
             elements = partition(
-                file=file_content,
+                file=io.BytesIO(file),
                 content_type=content_type,
                 api_key=self.api_key
             )
@@ -58,4 +52,4 @@ class UnstructuredAPIParser(BaseParser):
 
         except Exception as e:
             logger.error(f"Failed to parse file: {str(e)}")
-            raise
+            raise e

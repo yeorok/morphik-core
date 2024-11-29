@@ -10,9 +10,9 @@ class IngestTextRequest(BaseModel):
 
 
 class QueryRequest(BaseModel):
-    """Query request model - remains unchanged"""
-    query: str
+    """Query request model with validation"""
+    query: str = Field(..., min_length=1)
     return_type: QueryReturnType = QueryReturnType.CHUNKS
     filters: Optional[Dict[str, Any]] = None
-    k: int = 4
-    min_score: float = 0.0
+    k: int = Field(default=4, gt=0)
+    min_score: float = Field(default=0.0)

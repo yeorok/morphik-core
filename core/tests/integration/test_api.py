@@ -1,15 +1,18 @@
-import base64
+import asyncio
+import json
 import pytest
 from pathlib import Path
 import jwt
 from datetime import datetime, timedelta, UTC
-from typing import AsyncGenerator, Dict, Any
+from typing import AsyncGenerator, Dict
 from httpx import AsyncClient
 from fastapi import FastAPI
 from core.api import app, get_settings
-from core.models.auth import EntityType
-from core.database.mongo_database import MongoDatabase
-from core.vector_store.mongo_vector_store import MongoDBAtlasVectorStore
+import mimetypes
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # Test configuration
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
@@ -17,8 +20,18 @@ JWT_SECRET = "your-secret-key-for-signing-tokens"
 TEST_USER_ID = "test_user"
 
 
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create an instance of the default event loop for the test session"""
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    loop.close()
+
+
 @pytest.fixture(scope="session", autouse=True)
-def setup_test_environment():
+def setup_test_environment(event_loop):
     """Setup test environment and create test files"""
     # Create test data directory if it doesn't exist
     TEST_DATA_DIR.mkdir(exist_ok=True)
@@ -49,7 +62,7 @@ def create_test_token(
     expired: bool = False
 ) -> str:
     """Create a test JWT token"""
-    if permissions is None:
+    if not permissions:
         permissions = ["read", "write", "admin"]
         
     payload = {
@@ -76,7 +89,7 @@ def create_auth_header(
 
 
 @pytest.fixture
-async def test_app() -> FastAPI:
+async def test_app(event_loop: asyncio.AbstractEventLoop) -> FastAPI:
     """Create test FastAPI application"""
     # Configure test settings
     settings = get_settings()
@@ -85,21 +98,21 @@ async def test_app() -> FastAPI:
 
 
 @pytest.fixture
-async def client(test_app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
+async def client(test_app: FastAPI, event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[AsyncClient, None]:
     """Create async test client"""
     async with AsyncClient(app=test_app, base_url="http://test") as client:
         yield client
 
 
 @pytest.mark.asyncio
-async def test_ingest_text_document(client: AsyncClient):
+async def test_ingest_text_document(client: AsyncClient, content: str = "Test content for document ingestion"):
     """Test ingesting a text document"""
     headers = create_auth_header()
 
     response = await client.post(
-        "/documents/text",
+        "/ingest/text",
         json={
-            "content": "Test content for document ingestion",
+            "content": content,
             "metadata": {"test": True, "type": "text"}
         },
         headers=headers
@@ -115,28 +128,25 @@ async def test_ingest_text_document(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_ingest_file_document(client: AsyncClient):
-    """Test ingesting a file (PDF) document"""
+async def test_ingest_pdf(client: AsyncClient):
+    """Test ingesting a pdf"""
     headers = create_auth_header()
     pdf_path = TEST_DATA_DIR / "test.pdf"
     
     if not pdf_path.exists():
         pytest.skip("Test PDF file not available")
+
+    content_type, _ = mimetypes.guess_type(pdf_path)
+    if not content_type:
+        content_type = "application/octet-stream"
     
-    # Create form data with file and metadata
-    files = {
-        "file": ("test.pdf", open(pdf_path, "rb"), "application/pdf")
-    }
-    data = {
-        "metadata": json.dumps({"test": True, "type": "pdf"})
-    }
-    
-    response = await client.post(
-        "/documents/file",
-        files=files,
-        data=data,
-        headers=headers
-    )
+    with open(pdf_path, "rb") as f:
+        response = await client.post(
+            "/ingest/file",
+            files={"file": (pdf_path.name, f, content_type)},
+            data={"metadata": json.dumps({"test": True, "type": "pdf"})},
+            headers=headers
+        )
     
     assert response.status_code == 200
     data = response.json()
@@ -148,47 +158,61 @@ async def test_ingest_file_document(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_ingest_error_handling(client: AsyncClient):
-    """Test ingestion error cases"""
+async def test_ingest_invalid_text_request(client: AsyncClient):
+    """Test ingestion with invalid text request missing required content field"""
     headers = create_auth_header()
     
-    # Test invalid text request
     response = await client.post(
-        "/documents/text",
+        "/ingest/text",
         json={
             "wrong_field": "Test content"  # Missing required content field
         },
         headers=headers
     )
     assert response.status_code == 422  # Validation error
+
+
+@pytest.mark.asyncio 
+async def test_ingest_invalid_file_request(client: AsyncClient):
+    """Test ingestion with invalid file request missing file"""
+    headers = create_auth_header()
     
-    # Test invalid file request
     response = await client.post(
-        "/documents/file",
+        "/ingest/file",
         files={},  # Missing file
         data={"metadata": "{}"},
         headers=headers
     )
     assert response.status_code == 422  # Validation error
+
+
+@pytest.mark.asyncio
+async def test_ingest_invalid_metadata(client: AsyncClient):
+    """Test ingestion with invalid metadata JSON"""
+    headers = create_auth_header()
     
-    # Test invalid metadata JSON
     pdf_path = TEST_DATA_DIR / "test.pdf"
     if pdf_path.exists():
         files = {
             "file": ("test.pdf", open(pdf_path, "rb"), "application/pdf")
         }
         response = await client.post(
-            "/documents/file",
+            "/ingest/file", 
             files=files,
             data={"metadata": "invalid json"},
             headers=headers
         )
         assert response.status_code == 400  # Bad request
+
+
+@pytest.mark.asyncio
+async def test_ingest_oversized_content(client: AsyncClient):
+    """Test ingestion with oversized content"""
+    headers = create_auth_header()
     
-    # Test oversized content
     large_content = "x" * (10 * 1024 * 1024)  # 10MB
     response = await client.post(
-        "/documents/text",
+        "/ingest/text",
         json={
             "content": large_content,
             "metadata": {}
@@ -199,26 +223,34 @@ async def test_ingest_error_handling(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_auth_errors(client: AsyncClient):
-    """Test authentication error cases"""
-    # Test missing auth header
-    response = await client.post("/documents/text")
+async def test_auth_missing_header(client: AsyncClient):
+    """Test authentication with missing auth header"""
+    response = await client.post("/ingest/text")
     assert response.status_code == 401
-    
-    # Test invalid token
+
+
+@pytest.mark.asyncio 
+async def test_auth_invalid_token(client: AsyncClient):
+    """Test authentication with invalid token"""
     headers = {"Authorization": "Bearer invalid_token"}
-    response = await client.post("/documents/file", headers=headers)
+    response = await client.post("/ingest/file", headers=headers)
     assert response.status_code == 401
-    
-    # Test expired token
+
+
+@pytest.mark.asyncio
+async def test_auth_expired_token(client: AsyncClient):
+    """Test authentication with expired token"""
     headers = create_auth_header(expired=True)
-    response = await client.post("/documents/text", headers=headers)
+    response = await client.post("/ingest/text", headers=headers)
     assert response.status_code == 401
-    
-    # Test insufficient permissions
+
+
+@pytest.mark.asyncio
+async def test_auth_insufficient_permissions(client: AsyncClient):
+    """Test authentication with insufficient permissions"""
     headers = create_auth_header(permissions=["read"])
     response = await client.post(
-        "/documents/text",
+        "/ingest/text",
         json={
             "content": "Test content",
             "metadata": {}
@@ -226,7 +258,6 @@ async def test_auth_errors(client: AsyncClient):
         headers=headers
     )
     assert response.status_code == 403
-
 
 @pytest.mark.asyncio
 async def test_query_chunks(client: AsyncClient):
@@ -244,6 +275,7 @@ async def test_query_chunks(client: AsyncClient):
         },
         headers=headers
     )
+    logger.info(f"Query response: {response.json()}")
     
     assert response.status_code == 200
     results = response.json()
@@ -312,15 +344,17 @@ async def test_get_document(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_error_handling(client: AsyncClient):
-    """Test error handling scenarios"""
+async def test_invalid_document_id(client: AsyncClient):
+    """Test error handling for invalid document ID"""
     headers = create_auth_header()
-    
-    # Test invalid document ID
     response = await client.get("/documents/invalid_id", headers=headers)
     assert response.status_code == 404
-    
-    # Test invalid query parameters
+
+
+@pytest.mark.asyncio 
+async def test_invalid_query_params(client: AsyncClient):
+    """Test error handling for invalid query parameters"""
+    headers = create_auth_header()
     response = await client.post(
         "/query",
         json={
@@ -329,16 +363,20 @@ async def test_error_handling(client: AsyncClient):
         },
         headers=headers
     )
-    assert response.status_code == 400
-    
-    # Test oversized content
-    large_content = "x" * (10 * 1024 * 1024)  # 10MB
-    response = await client.post(
-        "/documents",
-        json={
-            "content": large_content,
-            "content_type": "text/plain"
-        },
-        headers=headers
-    )
-    assert response.status_code == 400
+    assert response.status_code == 422
+
+
+# @pytest.mark.asyncio
+# async def test_query_oversized_content(client: AsyncClient):
+#     """Test error handling for oversized content"""
+#     headers = create_auth_header()
+#     large_content = "x" * (10 * 1024 * 1024)  # 10MB
+#     response = await client.post(
+#         "/documents", 
+#         json={
+#             "content": large_content,
+#             "content_type": "text/plain"
+#         },
+#         headers=headers
+#     )
+#     assert response.status_code == 400
