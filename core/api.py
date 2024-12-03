@@ -55,7 +55,7 @@ database = MongoDatabase(
 vector_store = MongoDBAtlasVectorStore(
     settings.MONGODB_URI,
     settings.DATABRIDGE_DB,
-    "document_chunks",
+    settings.CHUNKS_COLLECTION,
     "vector_index"
 )
 
@@ -160,7 +160,10 @@ async def query_documents(
     """Query documents with specified return type."""
     try:
         return await document_service.query(request, auth)
+    # except AttributeError as e:
+    #     raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Query failed: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 

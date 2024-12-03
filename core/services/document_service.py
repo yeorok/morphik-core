@@ -174,9 +174,7 @@ class DocumentService:
         """Query documents with specified return type."""
         try:
             # 1. Get embedding for query
-            query_embedding = await self.embedding_model.embed_for_query(
-                request.query
-            )
+            query_embedding = await self.embedding_model.embed_for_query(request.query)
             logger.info("Generated query embedding")
 
             # 2. Find authorized documents
@@ -190,7 +188,6 @@ class DocumentService:
             chunks = await self.vector_store.query_similar(
                 query_embedding,
                 k=request.k,
-                auth=auth,
                 filters={"document_id": {"$in": doc_ids}}
             )
             logger.info(f"Found {len(chunks)} similar chunks")
@@ -207,7 +204,7 @@ class DocumentService:
 
         except Exception as e:
             logger.error(f"Query failed: {str(e)}")
-            raise
+            raise e
 
     def _create_chunk_objects(
         self,
@@ -300,7 +297,7 @@ class DocumentService:
                     chunk.score > doc_chunks[chunk.document_id].score):
                 doc_chunks[chunk.document_id] = chunk
         logger.info(f"Grouped chunks into {len(doc_chunks)} documents")
-
+        logger.info(f"Document chunks: {doc_chunks}")
         results = []
         for doc_id, chunk in doc_chunks.items():
             # Get document metadata
@@ -308,7 +305,7 @@ class DocumentService:
             if not doc:
                 logger.warning(f"Document {doc_id} not found")
                 continue
-            logger.debug(f"Retrieved metadata for document {doc_id}")
+            logger.info(f"Retrieved metadata for document {doc_id}")
 
             # Create DocumentContent based on content type
             if doc.content_type == "text/plain":

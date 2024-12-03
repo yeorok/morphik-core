@@ -3,7 +3,9 @@ from enum import Enum
 from datetime import UTC, datetime
 from pydantic import BaseModel, Field, field_validator
 import uuid
+import logging
 
+logger = logging.getLogger(__name__)
 
 class EntityType(str, Enum):
     USER = "user"
@@ -48,6 +50,8 @@ class DocumentChunk(BaseModel):
     embedding: List[float]
     chunk_number: int
     version: int = 1
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    score: float = 0.0
 
 
 class ChunkResult(BaseModel):
@@ -70,9 +74,10 @@ class DocumentContent(BaseModel):
 
     @field_validator('filename')
     def filename_only_for_url(cls, v, values):
-        if values.get('type') == 'string' and v is not None:
+        logger.debug(f"Value looks like: {values}")
+        if values.data.get('type') == 'string' and v is not None:
             raise ValueError('filename can only be set when type is url')
-        if values.get('type') == 'url' and v is None:
+        if values.data.get('type') == 'url' and v is None:
             raise ValueError('filename is required when type is url')
         return v
 

@@ -94,9 +94,9 @@ class MongoDatabase(BaseDatabase):
         """List accessible documents with pagination and filtering."""
         try:
             # Build query
-            query = self._build_access_filter(auth)
-            if filters:
-                query = {"$and": [query, filters]}
+            auth_filter = self._build_access_filter(auth)
+            metadata_filter = self._build_metadata_filter(filters)
+            query = {"$and": [auth_filter, metadata_filter]} if metadata_filter else auth_filter
 
             # Execute paginated query
             cursor = self.collection.find(query).skip(skip).limit(limit)
@@ -161,9 +161,9 @@ class MongoDatabase(BaseDatabase):
         """Find document IDs matching filters and access permissions."""
         try:
             # Build query
-            query = self._build_access_filter(auth)
-            if filters:
-                query = {"$and": [query, filters]}
+            auth_filter = self._build_access_filter(auth)
+            metadata_filter = self._build_metadata_filter(filters)
+            query = {"$and": [auth_filter, metadata_filter]} if metadata_filter else auth_filter
 
             # Get matching document IDs
             cursor = self.collection.find(query, {"external_id": 1})
@@ -232,3 +232,12 @@ class MongoDatabase(BaseDatabase):
             )
 
         return base_filter
+    
+    def _build_metadata_filter(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        """Build MongoDB filter for metadata."""
+        if not filters:
+            return {}
+        filter_dict = {}
+        for key, value in filters.items():
+            filter_dict[f"metadata.{key}"] = value
+        return filter_dict

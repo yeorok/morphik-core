@@ -1,3 +1,4 @@
+import json
 from typing import List, Dict, Any, Optional
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -72,18 +73,13 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
         self,
         query_embedding: List[float],
         k: int,
-        auth: AuthContext,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[DocumentChunk]:
         """Find similar chunks using MongoDB Atlas Vector Search."""
         try:
-            # Build access filter based on auth context
-            access_filter = self._build_access_filter(auth)
-            metadata_filter = self._build_metadata_filter(filters)
-            filter_query = {"$and": [access_filter, metadata_filter]} if metadata_filter else access_filter
-
+            logger.debug(f"Searching in database {self.db.name} collection {self.collection.name}")
             logger.debug(f"Query vector looks like: {query_embedding}")
-            logger.debug(f"Filter query looks like: {filter_query}")
+            logger.debug(f"Filter query looks like: {filters}")
             logger.debug(f"K is: {k}")
             logger.debug(f"Index is: {self.index_name}")
 
@@ -94,9 +90,9 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
                         "index": self.index_name,
                         "path": "embedding",
                         "queryVector": query_embedding,
-                        "numCandidates": 150,  # Get more candidates for better results
+                        "numCandidates": k*40,  # Get more candidates for better results
                         "limit": k,
-                        "filter": filter_query
+                        "filter": filters
                     }
                 },
                 {
@@ -113,9 +109,6 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
 
             # Execute search
             cursor = self.collection.aggregate(pipeline)
-            chunk_list = [result async for result in cursor]
-            logger.info(f"Found {len(chunk_list)} similar chunks")
-            logger.info(f"Cursor: {chunk_list}")
             chunks = []
             
             async for result in cursor:
@@ -132,7 +125,9 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
             return chunks
 
         except PyMongoError as e:
+            logger.error(f"MongoDB error: {e._message}")
             logger.error(f"Error querying similar chunks: {str(e)}")
+            raise e
             return []
 
     def _build_access_filter(self, auth: AuthContext) -> Dict[str, Any]:
