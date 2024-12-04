@@ -11,6 +11,6 @@ class BaseVectorStore(ABC):
         pass
 
     @abstractmethod
-    def query_similar(self, query_embedding: List[float], k: int, auth: AuthContext, filters: Optional[Dict[str, Any]] = None) -> List[DocumentChunk]:
+    def query_similar(self, query_embedding: List[float], k: int, auth: AuthContext, doc_ids: Optional[List[str]] = None) -> List[DocumentChunk]:
         """Find similar chunks"""
         pass

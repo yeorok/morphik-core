@@ -259,6 +259,7 @@ async def test_auth_insufficient_permissions(client: AsyncClient):
     )
     assert response.status_code == 403
 
+
 @pytest.mark.asyncio
 async def test_query_chunks(client: AsyncClient):
     """Test querying document chunks"""
@@ -266,12 +267,15 @@ async def test_query_chunks(client: AsyncClient):
     doc_id = await test_ingest_text_document(client, content="The quick brown fox jumps over the lazy dog")
     
     headers = create_auth_header()
+    # Sleep to allow time for document to be indexed
+    await asyncio.sleep(1)
+    
     response = await client.post(
         "/query",
         json={
             "query": "jumping fox",
             "return_type": "chunks",
-            "k": 2
+            "k": 1
         },
         headers=headers
     )
@@ -279,10 +283,10 @@ async def test_query_chunks(client: AsyncClient):
     
     assert response.status_code == 200
     results = list(response.json())
-    # logger.info(f"Query results: {results}")
-    assert len(results) == 2
-    assert all(isinstance(r["score"], (int, float)) for r in results)
-    # assert all(r["document_id"] == doc_id for r in results)
+    logger.info(f"Query results: {results}")
+    assert len(results) == 1
+    assert results[0]["score"] > 0.5
+    assert results[0]["document_id"] == doc_id
 
 
 @pytest.mark.asyncio
@@ -297,7 +301,7 @@ async def test_query_documents(client: AsyncClient):
         json={
             "query": "Headaches, dehydration",
             "return_type": "documents",
-            # "filters": {"test": True}
+            "filters": {"test": True}
         },
         headers=headers
     )
@@ -305,7 +309,7 @@ async def test_query_documents(client: AsyncClient):
     assert response.status_code == 200
     results = list(response.json())
     assert len(results) > 0
-    # assert results[0]["document_id"] == doc_id
+    assert results[0]["document_id"] == doc_id
     assert "score" in results[0]
     assert "metadata" in results[0]
 
@@ -352,7 +356,7 @@ async def test_invalid_document_id(client: AsyncClient):
     assert response.status_code == 404
 
 
-@pytest.mark.asyncio 
+@pytest.mark.asyncio
 async def test_invalid_query_params(client: AsyncClient):
     """Test error handling for invalid query parameters"""
     headers = create_auth_header()
@@ -365,19 +369,3 @@ async def test_invalid_query_params(client: AsyncClient):
         headers=headers
     )
     assert response.status_code == 422
-
-
-# @pytest.mark.asyncio
-# async def test_query_oversized_content(client: AsyncClient):
-#     """Test error handling for oversized content"""
-#     headers = create_auth_header()
-#     large_content = "x" * (10 * 1024 * 1024)  # 10MB
-#     response = await client.post(
-#         "/documents", 
-#         json={
-#             "content": large_content,
-#             "content_type": "text/plain"
-#         },
-#         headers=headers
-#     )
-#     assert response.status_code == 400

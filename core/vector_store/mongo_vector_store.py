@@ -73,13 +73,13 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
         self,
         query_embedding: List[float],
         k: int,
-        filters: Optional[Dict[str, Any]] = None
+        doc_ids: Optional[List[str]] = None,
     ) -> List[DocumentChunk]:
         """Find similar chunks using MongoDB Atlas Vector Search."""
         try:
             logger.debug(f"Searching in database {self.db.name} collection {self.collection.name}")
             logger.debug(f"Query vector looks like: {query_embedding}")
-            logger.debug(f"Filter query looks like: {filters}")
+            logger.debug(f"Doc IDs: {doc_ids}")
             logger.debug(f"K is: {k}")
             logger.debug(f"Index is: {self.index_name}")
 
@@ -92,7 +92,7 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
                         "queryVector": query_embedding,
                         "numCandidates": k*40,  # Get more candidates for better results
                         "limit": k,
-                        "filter": filters
+                        "filter": {"document_id": {"$in": doc_ids}} if doc_ids else {}
                     }
                 },
                 {
@@ -128,7 +128,6 @@ class MongoDBAtlasVectorStore(BaseVectorStore):
             logger.error(f"MongoDB error: {e._message}")
             logger.error(f"Error querying similar chunks: {str(e)}")
             raise e
-            return []
 
     def _build_access_filter(self, auth: AuthContext) -> Dict[str, Any]:
         """Build MongoDB filter for access control."""

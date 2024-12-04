@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field("HS256", env="JWT_ALGORITHM")
     
     # Server settings
-    HOST: str = Field("0.0.0.0", env="HOST")
+    HOST: str = Field("localhost", env="HOST")
     PORT: int = Field(8000, env="PORT")
     RELOAD: bool = Field(False, env="RELOAD")
 

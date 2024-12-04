@@ -56,7 +56,7 @@ vector_store = MongoDBAtlasVectorStore(
     settings.MONGODB_URI,
     settings.DATABRIDGE_DB,
     settings.CHUNKS_COLLECTION,
-    "vector_index"
+    settings.VECTOR_INDEX_NAME
 )
 
 storage = S3Storage(

@@ -188,7 +188,7 @@ class DocumentService:
             chunks = await self.vector_store.query_similar(
                 query_embedding,
                 k=request.k,
-                filters={"document_id": {"$in": doc_ids}}
+                doc_ids=doc_ids,
             )
             logger.info(f"Found {len(chunks)} similar chunks")
 
