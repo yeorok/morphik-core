@@ -6,8 +6,16 @@ export interface ConnectorAuthStatus {
 }
 
 // Fetches the authentication status for a given connector type
-export async function getConnectorAuthStatus(apiBaseUrl: string, connectorType: string): Promise<ConnectorAuthStatus> {
-  const response = await fetch(`${apiBaseUrl}/ee/connectors/${connectorType}/auth_status`);
+export async function getConnectorAuthStatus(
+  apiBaseUrl: string,
+  connectorType: string,
+  authToken: string | null
+): Promise<ConnectorAuthStatus> {
+  const response = await fetch(`${apiBaseUrl}/ee/connectors/${connectorType}/auth_status`, {
+    headers: {
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    },
+  });
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(
@@ -19,7 +27,14 @@ export async function getConnectorAuthStatus(apiBaseUrl: string, connectorType: 
 
 // Initiates the authentication process by redirecting the user
 // The backend will handle the actual redirect to the OAuth provider
-export function initiateConnectorAuth(apiBaseUrl: string, connectorType: string, appRedirectUri: string): void {
+export function initiateConnectorAuth(
+  apiBaseUrl: string,
+  connectorType: string,
+  appRedirectUri: string
+  // authToken is not typically needed for the initiation step if it's a redirect-based flow
+  // and the backend establishes session/cookie upon callback.
+  // If token IS needed by this specific /initiate endpoint, it would be added here.
+): void {
   // The backend /auth/initiate endpoint itself performs a redirect.
   // So, navigating to it will trigger the OAuth flow.
   // We add the app_redirect_uri for the backend to use after successful callback.
@@ -29,11 +44,16 @@ export function initiateConnectorAuth(apiBaseUrl: string, connectorType: string,
 }
 
 // Disconnects a connector for the current user
-export async function disconnectConnector(apiBaseUrl: string, connectorType: string): Promise<void> {
+export async function disconnectConnector(
+  apiBaseUrl: string,
+  connectorType: string,
+  authToken: string | null
+): Promise<void> {
   const response = await fetch(`${apiBaseUrl}/ee/connectors/${connectorType}/disconnect`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
     },
   });
   if (!response.ok) {
@@ -59,6 +79,7 @@ export interface ConnectorFile {
 export async function listConnectorFiles(
   apiBaseUrl: string,
   connectorType: string,
+  authToken: string | null,
   path: string | null,
   pageToken?: string,
   q_filter?: string,
@@ -81,7 +102,7 @@ export async function listConnectorFiles(
     method: "GET",
     headers: {
       "Content-Type": "application/json",
-      // TODO: Add authorization headers if required by your API setup
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
     },
   });
 
@@ -103,6 +124,7 @@ interface IngestionOptions {
 export async function ingestConnectorFile(
   apiBaseUrl: string,
   connectorType: string,
+  authToken: string | null,
   fileId: string,
   // Replace displayName with ingestionOptions
   options?: IngestionOptions
@@ -121,7 +143,7 @@ export async function ingestConnectorFile(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // TODO: Add authorization headers if required
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
     },
     body: JSON.stringify(body),
   });
