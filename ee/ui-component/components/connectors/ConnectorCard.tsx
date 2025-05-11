@@ -69,7 +69,7 @@ export function ConnectorCard({
       const connectionsSectionUrl = new URL(window.location.origin);
       connectionsSectionUrl.pathname = "/"; // Ensure we are at the root path
       connectionsSectionUrl.searchParams.set("section", "connections");
-      initiateConnectorAuth(apiBaseUrl, connectorType, connectionsSectionUrl.toString());
+      initiateConnectorAuth(apiBaseUrl, connectorType, connectionsSectionUrl.toString(), authToken);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to initiate connection.");
       setIsSubmitting(false);

@@ -27,20 +27,53 @@ export async function getConnectorAuthStatus(
 
 // Initiates the authentication process by redirecting the user
 // The backend will handle the actual redirect to the OAuth provider
-export function initiateConnectorAuth(
+export async function initiateConnectorAuth(
   apiBaseUrl: string,
   connectorType: string,
-  appRedirectUri: string
-  // authToken is not typically needed for the initiation step if it's a redirect-based flow
-  // and the backend establishes session/cookie upon callback.
-  // If token IS needed by this specific /initiate endpoint, it would be added here.
-): void {
-  // The backend /auth/initiate endpoint itself performs a redirect.
-  // So, navigating to it will trigger the OAuth flow.
-  // We add the app_redirect_uri for the backend to use after successful callback.
-  const initiateUrl = new URL(`${apiBaseUrl}/ee/connectors/${connectorType}/auth/initiate`);
-  initiateUrl.searchParams.append("app_redirect_uri", appRedirectUri);
-  window.location.href = initiateUrl.toString();
+  appRedirectUri: string,
+  authToken: string | null
+): Promise<void> {
+  // Use the *initiate_url* helper which returns a JSON payload containing the
+  // provider's authorization_url.  This avoids CORS issues with opaque
+  // redirects when the backend directly issues a 30x to a third-party domain.
+
+  const helperUrl = new URL(`${apiBaseUrl}/ee/connectors/${connectorType}/auth/initiate_url`);
+  helperUrl.searchParams.append("app_redirect_uri", appRedirectUri);
+
+  try {
+    const resp = await fetch(helperUrl.toString(), {
+      method: "GET",
+      headers: {
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+      credentials: "include",
+    });
+
+    if (!resp.ok) {
+      let detail = "";
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const errBody = await resp.json();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        detail = (errBody as any)?.detail || "";
+      } catch {
+        /* ignore */
+      }
+      throw new Error(`Failed to initiate auth flow: ${resp.status} ${resp.statusText} ${detail}`);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const data: { authorization_url: string } = await resp.json();
+    if (!data.authorization_url) {
+      throw new Error("Backend did not return authorization_url");
+    }
+
+    // Finally navigate to the provider's OAuth consent page
+    window.location.href = data.authorization_url;
+  } catch (err) {
+    console.error("Error initiating connector auth:", err);
+    throw err;
+  }
 }
 
 // Disconnects a connector for the current user
