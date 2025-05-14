@@ -1635,24 +1635,25 @@ async def get_folder(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/folders/{folder_id}")
+@app.delete("/folders/{folder_name}")
 @telemetry.track(operation_type="delete_folder", metadata_resolver=telemetry.delete_folder_metadata)
 async def delete_folder(
-    folder_id: str,
+    folder_name: str,
     auth: AuthContext = Depends(verify_token),
 ):
     """
     Delete a folder and all associated documents.
 
     Args:
-        folder_id: ID of the folder to delete
+        folder_name: Name of the folder to delete
         auth: Authentication context (must have write access to the folder)
 
     Returns:
         Deletion status
     """
     try:
-        folder = await document_service.db.get_folder(folder_id, auth)
+        folder = await document_service.db.get_folder_by_name(folder_name, auth)
+        folder_id = folder.id
         if not folder:
             raise HTTPException(status_code=404, detail="Folder not found")
 
