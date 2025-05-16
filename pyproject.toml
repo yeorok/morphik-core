@@ -54,3 +54,14 @@ dependencies = [
     "unstructured[pdf]>=0.17.2",
     "uvicorn>=0.34.2",
 ]
+
+[tool.black]
+line-length = 120
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.ruff]
+line-length = 120
+ignore = ["I"]
