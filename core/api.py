@@ -179,7 +179,7 @@ async def ingest_file(
     metadata: str = Form("{}"),
     rules: str = Form("[]"),
     auth: AuthContext = Depends(verify_token),
-    use_colpali: Optional[bool] = None,
+    use_colpali: Optional[bool] = Form(None),
     folder_name: Optional[str] = Form(None),
     end_user_id: Optional[str] = Form(None),
     redis: arq.ArqRedis = Depends(get_redis_pool),
@@ -1024,7 +1024,7 @@ async def update_document_file(
     metadata: str = Form("{}"),
     rules: str = Form("[]"),
     update_strategy: str = Form("add"),
-    use_colpali: Optional[bool] = None,
+    use_colpali: Optional[bool] = Form(None),
     auth: AuthContext = Depends(verify_token),
 ):
     """
