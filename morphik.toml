@@ -118,6 +118,10 @@ port = 6379
 model = "ollama_qwen_vision"
 enable_entity_resolution = true
 
+# [graph]
+# mode="api"
+# base_url="https://graph-api.morphik.ai"
+
 [telemetry]
 enabled = true
 honeycomb_enabled = true
