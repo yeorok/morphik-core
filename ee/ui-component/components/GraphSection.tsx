@@ -528,13 +528,10 @@ const GraphSection: React.FC<GraphSectionProps> = ({
 
     const id = setInterval(async () => {
       // Check workflow status for each processing graph
-      const statusChecks = processingGraphs.map(async (graph) => {
+      const statusChecks = processingGraphs.map(async graph => {
         if (graph.system_metadata?.workflow_id) {
           try {
-            const result = await checkWorkflowStatus(
-              graph.system_metadata.workflow_id,
-              graph.system_metadata.run_id
-            );
+            const result = await checkWorkflowStatus(graph.system_metadata.workflow_id, graph.system_metadata.run_id);
 
             // If workflow is completed or failed, refresh the graph list
             if (result.status === "completed" || result.status === "failed") {
