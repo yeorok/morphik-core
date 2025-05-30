@@ -1616,6 +1616,67 @@ async def update_graph(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/graph/workflow/{workflow_id}/status", response_model=Dict[str, Any])
+@telemetry.track(operation_type="check_workflow_status", metadata_resolver=telemetry.workflow_status_metadata)
+async def check_workflow_status(
+    workflow_id: str,
+    run_id: Optional[str] = None,
+    auth: AuthContext = Depends(verify_token),
+) -> Dict[str, Any]:
+    """Check the status of a graph build/update workflow.
+
+    This endpoint polls the external graph API to check the status of an async operation.
+
+    Args:
+        workflow_id: The workflow ID returned from build/update operations
+        run_id: Optional run ID for the specific workflow run
+        auth: Authentication context
+
+    Returns:
+        Dict containing status ('running', 'completed', or 'failed') and optional result
+    """
+    try:
+        # Get the graph service (either local or API-based)
+        graph_service = document_service.graph_service
+
+        # Check if it's the MorphikGraphService
+        from core.services.morphik_graph_service import MorphikGraphService
+
+        if isinstance(graph_service, MorphikGraphService):
+            # Use the new check_workflow_status method
+            result = await graph_service.check_workflow_status(workflow_id=workflow_id, run_id=run_id, auth=auth)
+
+            # If the workflow is completed, update the corresponding graph status
+            if result.get("status") == "completed":
+                # Extract graph_id from workflow_id (format: "build-update-{graph_name}-...")
+                # This is a simple heuristic, adjust based on actual workflow_id format
+                parts = workflow_id.split("-")
+                if len(parts) >= 3:
+                    graph_name = parts[2]
+                    try:
+                        # Find and update the graph
+                        graphs = await document_service.db.list_graphs(auth)
+                        for graph in graphs:
+                            if graph.name == graph_name or workflow_id in graph.system_metadata.get("workflow_id", ""):
+                                graph.system_metadata["status"] = "completed"
+                                # Clear workflow tracking data
+                                graph.system_metadata.pop("workflow_id", None)
+                                graph.system_metadata.pop("run_id", None)
+                                await document_service.db.update_graph(graph)
+                                break
+                    except Exception as e:
+                        logger.warning(f"Failed to update graph status after workflow completion: {e}")
+
+            return result
+        else:
+            # For local graph service, workflows complete synchronously
+            return {"status": "completed", "result": {"message": "Local graph operations complete synchronously"}}
+
+    except Exception as e:
+        logger.error(f"Error checking workflow status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/local/generate_uri", include_in_schema=True)
 async def generate_local_uri(
     name: str = Form("admin"),
