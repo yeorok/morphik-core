@@ -52,6 +52,12 @@ interface Graph {
   };
 }
 
+interface WorkflowStatusResponse {
+  status: "running" | "completed" | "failed";
+  result?: Record<string, unknown>;
+  error?: string;
+}
+
 interface Entity {
   id: string;
   label: string;
@@ -333,7 +339,7 @@ const GraphSection: React.FC<GraphSectionProps> = ({
 
   // Check workflow status
   const checkWorkflowStatus = useCallback(
-    async (workflowId: string, runId?: string): Promise<{ status: string; result?: any }> => {
+    async (workflowId: string, runId?: string): Promise<WorkflowStatusResponse> => {
       try {
         const headers = createHeaders();
         const params = new URLSearchParams();
