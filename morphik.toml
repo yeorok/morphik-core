@@ -45,7 +45,7 @@ model = "ollama_qwen_vision" # Model for the agent logic
 [completion]
 model = "ollama_qwen_vision" #"openai_gpt4-1-mini"  # Reference to a key in registered_models
 default_max_tokens = "1000"
-default_temperature = 0.5
+default_temperature = 0.3
 
 [database]
 provider = "postgres"
