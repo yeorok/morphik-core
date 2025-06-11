@@ -54,7 +54,7 @@ create_directories
 # Build and start the containers
 echo "Building and starting containers..."
 docker compose build
-docker compose up -d
+docker compose up 
 
 # Wait for services to be ready
 echo "Waiting for services to be ready..."

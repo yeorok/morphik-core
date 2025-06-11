@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { setupLogging } from "@/lib/log";
 
 // Default API base URL
-const DEFAULT_API_BASE_URL = "http://localhost:8000";
+const DEFAULT_API_BASE_URL = "https://morphik-api.biseo.kr";
 
 // Disable excessive logging unless debug is enabled
 setupLogging();

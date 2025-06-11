@@ -32,8 +32,8 @@ services:
       - USE_FAST_TOKENIZER=true
       - TRANSFORMERS_USE_FAST=true
     volumes:
-      - ../data/storage:/app/storage
-      - ../data/logs:/app/logs
+      - ./storage:/app/storage
+      - ./logs:/app/logs
       - ./morphik.toml:/app/morphik.toml
       - huggingface_cache:/root/.cache/huggingface
     depends_on:
@@ -62,8 +62,8 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
     volumes:
-      - ../data/storage:/app/storage
-      - ../data/logs:/app/logs
+      - ./storage:/app/storage
+      - ./logs:/app/logs
       - ./morphik.toml:/app/morphik.toml
       - huggingface_cache:/root/.cache/huggingface
     depends_on:
@@ -109,7 +109,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ../data/postgres:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-morphik} -d ${POSTGRES_DB:-morphik}"]
       #  test: ["CMD-SHELL", "pg_isready -U morphik -d morphik"]
@@ -127,7 +127,7 @@ services:
     image: grafana/grafana:latest
     restart: unless-stopped  # 재부팅시 자동 재시작
     ports:
-      - "3003:3000"  # Grafana 웹 인터페이스
+      - "3000:3000"  # Grafana 웹 인터페이스
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123!}
@@ -136,9 +136,9 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
-      - ../data/grafana:/var/lib/grafana
-      - ../data/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ../data/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
     networks:
       - morphik-network
 
@@ -148,12 +148,7 @@ networks:
     driver: bridge
 
 volumes:
-  #  postgres_data:
-  #    driver: local
-  #    driver_opts:
-  #      type: none
-  #      o: bind
-  #      device: ../data/postgres
-  redis_data:
+  postgres_data:
   huggingface_cache:
-    #  grafana_data:
+  redis_data:
+  grafana_data:

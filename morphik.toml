@@ -1,16 +1,27 @@
 [api]
 host = "0.0.0.0"
 port = 8000
-reload = true
+reload = true     # 개발 모드에서 코드 변경 시 자동 재시작
+# reload = false    # 상용 모드: 자동 재시작 비활성화 (안정성 향상)
 
 [auth]
 jwt_algorithm = "HS256"
-dev_mode = true  # Enabled by default for easier local development
-dev_entity_id = "dev_user"  # Default dev user ID
-dev_entity_type = "developer"  # Default dev entity type
-dev_permissions = ["read", "write", "admin"]  # Default dev permissions
+dev_mode = true  # 로컬 개발을 위한 개발 모드 활성화
+dev_entity_id = "dev_user"  # 기본 개발 사용자 ID
+dev_entity_type = "developer"  # 기본 개발 사용자 타입
+dev_permissions = ["read", "write", "admin"]  # 기본 개발 권한
 
-#### Registered models
+# 상용 환경 설정
+#dev_mode = false  # 상용 모드: 보안 강화, 인증 필수
+#dev_entity_id = "dev_user"      # 상용에서는 사용하지 않음 (주석 처리)
+#dev_entity_type = "developer"   # 상용에서는 사용하지 않음 (주석 처리)
+#dev_permissions = ["read", "write", "admin"]  # 상용에서는 사용하지 않음 (주석 처리)
+
+# 상용 모드에서는 JWT 토큰을 통한 적절한 인증이 필요합니다
+# JWT_SECRET_KEY 환경변수를 반드시 안전한 값으로 설정하세요
+
+
+#### 등록된 모델 설정 ####
 [registered_models]
 # OpenAI models
 openai_gpt4-1 = { model_name = "gpt-4.1" }
@@ -28,9 +39,9 @@ claude_sonnet = { model_name = "claude-3-7-sonnet-latest" }
 # - Local Ollama: "http://localhost:11434" (default)
 # - Morphik in Docker, Ollama local: "http://host.docker.internal:11434"
 # - Both in Docker: "http://ollama:11434"
-ollama_qwen_vision = { model_name = "ollama_chat/qwen2.5vl:latest", api_base = "http://localhost:11434", vision = true }
-ollama_llama_vision = { model_name = "ollama_chat/llama3.2-vision", api_base = "http://localhost:11434", vision = true }
-ollama_embedding = { model_name = "ollama/nomic-embed-text", api_base = "http://localhost:11434" }
+ollama_qwen_vision = { model_name = "ollama_chat/qwen2.5vl:latest", api_base = "http://nicemso.ipdisk.co.kr:11434", vision = true }
+ollama_llama_vision = { model_name = "ollama_chat/llama3.2-vision", api_base = "http://nicemso.ipdisk.co.kr:11434", vision = true }
+ollama_embedding = { model_name = "ollama/nomic-embed-text", api_base = "http://nicemso.ipdisk.co.kr:11434" }
 
 openai_embedding = { model_name = "text-embedding-3-small" }
 openai_embedding_large = { model_name = "text-embedding-3-large" }
@@ -40,29 +51,43 @@ azure_embedding = { model_name = "text-embedding-ada-002", api_base = "YOUR_AZUR
 #### Component configurations ####
 
 [agent]
+# AI 에이전트 로직에 사용할 모델 (외부 Ollama 서버의 비전 모델 사용)
 model = "ollama_qwen_vision" # Model for the agent logic
 
 [completion]
-model = "ollama_qwen_vision" #"openai_gpt4-1-mini"  # Reference to a key in registered_models
-default_max_tokens = "1000"
-default_temperature = 0.3
+# 텍스트 생성/완성에 사용할 모델 (외부 Ollama 서버 사용)
+model = "ollama_qwen_vision"  # 또는 "openai_gpt4-1-mini" (OpenAI 사용시)
+default_max_tokens = "1000"   # 기본 최대 토큰 수
+default_temperature = 0.3     # 창의성 수준 (0.0-1.0, 낮을수록 일관성 높음)
 
 [database]
 provider = "postgres"
-# Connection pool settings
-pool_size = 10           # Maximum number of connections in the pool
-max_overflow = 15        # Maximum number of connections that can be created beyond pool_size
-pool_recycle = 3600      # Time in seconds after which a connection is recycled (1 hour)
-pool_timeout = 10        # Seconds to wait for a connection from the pool
-pool_pre_ping = true     # Check connection viability before using it from the pool
-max_retries = 3          # Number of retries for database operations
-retry_delay = 1.0        # Initial delay between retries in seconds
+
+# 연결 풀 설정 (성능 최적화)
+pool_size = 10           # 연결 풀의 최대 연결 수
+max_overflow = 15        # 풀 크기 초과시 생성 가능한 추가 연결 수
+pool_recycle = 3600      # 연결 재활용 시간 (초, 1시간)
+pool_timeout = 10        # 연결 풀에서 연결 대기 시간 (초)
+pool_pre_ping = true     # 연결 사용 전 유효성 검사
+max_retries = 3          # 데이터베이스 작업 재시도 횟수
+retry_delay = 1.0        # 재시도 간 초기 지연 시간 (초)
+
+# 상용 환경 연결 풀 설정 (고성능/고가용성)
+#pool_size = 20           # 연결 풀 크기 증가 (높은 동시성 처리)
+#max_overflow = 30        # 풀 크기 초과시 생성 가능한 추가 연결 수 증가
+#pool_recycle = 7200      # 연결 재활용 시간 (초, 2시간으로 증가)
+#pool_timeout = 30        # 연결 풀에서 연결 대기 시간 증가 (초)
+#pool_pre_ping = true     # 연결 사용 전 유효성 검사 (필수)
+#max_retries = 5          # 데이터베이스 작업 재시도 횟수 증가
+#retry_delay = 2.0        # 재시도 간 초기 지연 시간 증가 (초)
+
+
 
 [embedding]
-model = "ollama_embedding"  # Reference to registered model
-dimensions = 768
-similarity_metric = "cosine"
-
+# 벡터 임베딩 설정 (문서 검색을 위한 벡터화)
+model = "ollama_embedding"    # 외부 Ollama 서버의 임베딩 모델 사용
+dimensions = 768              # 벡터 차원 수 (nomic-embed-text 모델의 차원)
+similarity_metric = "cosine"  # 유사도 계산 방법 (코사인 유사도)
 [parser]
 chunk_size = 6000
 chunk_overlap = 300
@@ -84,7 +109,7 @@ model_name = "BAAI/bge-reranker-large"
 query_max_length = 256
 passage_max_length = 512
 use_fp16 = true
-device = "mps" # use "cpu" if on docker and using a mac, "cuda" if cuda enabled device
+device = "cpu"  # 외부 Ollama 사용시 CPU만 필요
 
 [storage]
 provider = "local"
@@ -105,13 +130,14 @@ batch_size = 4096
 [morphik]
 enable_colpali = true
 mode = "self_hosted"  # "cloud" or "self_hosted"
-api_domain = "api.morphik.ai"  # API domain for cloud URIs
+#api_domain = "api.morphik.ai"  # API domain for cloud URIs
+api_domain = "morphik-api.biseo.kr"  # API domain for cloud URIs
 # Only call the embedding API if colpali_mode is "api"
 morphik_embedding_api_domain = "http://localhost:6000"  # endpoint for multivector embedding service
 colpali_mode = "local" # "off", "local", or "api"
 
 [redis]
-host = "localhost"  # use "redis" for docker
+host = "redis"  # use "redis" for docker
 port = 6379
 
 [graph]
